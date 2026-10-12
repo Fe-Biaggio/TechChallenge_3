@@ -1,10 +1,156 @@
-# Tech Challenge Fase 3 — Pipeline Híbrido para Análise da Alfabetização no Brasil
+# Tech Challenge Fase 3 — Predição e Inteligência Analítica para Alfabetização no Brasil
 
 **Pós-Tech FIAP | 1IAST | Fase 3**
 
+Este repositório tem dois componentes que convivem de propósito:
+
+1. **Pipeline de dados** (`pipeline/`, `quality/`) — construída na Fase 2,
+   mantida como está. Produz a camada Gold a partir das fontes do INEP.
+2. **Modelo preditivo** (`src/`) — novo nesta fase. Consome a Gold da
+   pipeline para treinar um modelo supervisionado que prevê se um aluno
+   será considerado alfabetizado, conforme pede o
+   [enunciado da Fase 3](docs/[IAST]%20-%20Tech%20Challenge%20-%20Fase%203.pdf).
+
+A documentação do item 2 vem primeiro abaixo (é o entregável desta fase);
+a documentação completa do item 1 continua mais abaixo, em
+["Pipeline de Dados (Fase 2)"](#pipeline-de-dados-fase-2--base-para-este-modelo).
+
 ---
 
+# Modelo Preditivo (Fase 3)
+
 ## Contexto do Problema
+
+A alfabetização infantil é um dos principais indicadores do desenvolvimento educacional e social do Brasil. Mas conhecer o indicador atual não é suficiente para apoiar decisão estratégica: gestores públicos precisam **antecipar** risco, identificar regiões vulneráveis e entender quais fatores mais pesam no resultado educacional — e isso exige ir além do indicador agregado, para uma predição no nível do aluno.
+
+Na Fase 2 deste mesmo projeto, construímos a pipeline de engenharia de dados que integra o Indicador Criança Alfabetizada (INEP), metas nacionais/estaduais/municipais, dados territoriais e o IDHM (Atlas do Desenvolvimento Humano) numa camada Gold confiável. Esta fase usa essa Gold como base para ciência de dados aplicada: um modelo supervisionado.
+
+## Objetivo Analítico
+
+Desenvolver um **modelo de classificação binária** que prevê, para um aluno do 2º ano do ensino fundamental, se ele será considerado **alfabetizado** (proficiência ≥ 743 pontos na escala Saeb) ou **não alfabetizado**, usando apenas variáveis **territoriais, contextuais e socioeconômicas** — nunca o resultado da própria prova (ver "Tratamento de Data Leakage" abaixo).
+
+O objetivo não é só a métrica: é identificar quais fatores mais pesam no resultado, quais municípios concentram maior risco, e como isso poderia orientar política pública (ver "Aplicação Prática para Políticas Públicas").
+
+## Descrição da Base Utilizada
+
+Fonte: camada Gold + Silver da pipeline da Fase 2 (`pipeline/executar_pipeline.py`), já validada pelo gate de qualidade daquele projeto — este modelo não reimplementa limpeza de dados, parte do que já está pronto.
+
+| Fonte | Camada | O que contribui |
+|---|---|---|
+| `alunos` | Silver | Alvo (`alfabetizado`) + `rede_label`, por aluno |
+| `indicador_alfabetizacao_municipio` | Gold | Indicador histórico do município, gap vs. indicador nacional, faixa de risco, IDHM — **defasados em 1 ano** |
+
+Montagem completa em [`src/preprocessing/dataset.py`](src/preprocessing/dataset.py). Decisões-chave:
+
+- **População**: só alunos com `presenca=True` e `preenchimento_caderno=True` — ~3,35M de 3,87M. Para quem faltou ou não preencheu a prova corretamente, o rótulo "não alfabetizado" é administrativo (não houve avaliação), não uma medida real de proficiência; incluir essas linhas ensinaria o modelo a prever ausência, não alfabetização.
+- **Apenas ano = 2024** (~1,85M alunos): 2023 não tem "ano anterior" disponível nos dados (não há 2022), então ficaria com as 7 features municipais sempre nulas — incluir esses alunos ensinaria o modelo a ignorar essas variáveis, e um split temporal 2023→2024 treinaria sem nunca ver as features preenchidas. Ver decisão 6 em `dataset.py` para o raciocínio completo.
+- **11 features finais**: `taxa_alfabetizacao`, `indicador_nacional`, `gap_indicador_nacional`, `idhm`, `idhm_educacao`, `idhm_longevidade`, `idhm_renda` (numéricas) + `faixa_risco`, `sigla_uf`, `nome_regiao`, `rede_label` (categóricas).
+- **Alvo balanceado**: ~59,8% alfabetizados / 40,2% não — não precisou de reamostragem (SMOTE etc.), só `class_weight="balanced"` no classificador.
+
+## Tratamento de Data Leakage
+
+Dois vazamentos foram identificados e tratados — o primeiro óbvio, o segundo sutil o bastante para passar despercebido numa primeira implementação:
+
+1. **`proficiencia` → excluída das features.** `alfabetizado` é definido por um corte determinístico sobre `proficiencia` (≥743 pontos). Confirmei isso nos dados antes de excluir, não é suposição: o maior valor de `proficiencia` entre alunos `alfabetizado=False` é 742,99; o menor entre `alfabetizado=True` é logo acima de 743. Usar `proficiencia` como feature seria prever o rótulo a partir de si mesmo.
+
+2. **Indicador municipal do mesmo ano → defasado em 1 ano.** `taxa_alfabetizacao` na Gold é um agregado calculado *a partir dos próprios alunos avaliados naquele município naquele ano* — incluindo o aluno que estamos tentando prever. Em municípios pequenos (poucos alunos avaliados), o resultado de um único aluno pode mover o agregado de forma perceptível — uma forma sutil de vazamento por agregação circular. A correção: todo o contexto municipal usado como feature vem do **ano anterior** ao da prova do aluno (`ano_predicao = ano_indicador + 1` em `dataset.py`), quebrando a circularidade — e tornando o modelo mais realista: em produção, só o indicador do ano anterior estaria disponível no momento de prever o ano corrente.
+
+`serie` (constante, só 2º ano) e `caderno` (código do caderno de prova, sorteado por logística de aplicação — confirmado que não é atribuído por característica do aluno) também foram excluídas por não carregarem sinal preditivo real, não por risco de vazamento.
+
+## Etapas de Modelagem
+
+Pipeline scikit-learn único (`src/modeling/pipeline.py`) — pré-processamento integrado ao modelo, não como passo manual separado:
+
+1. **Imputação**: mediana para numéricas, constante `"Desconhecido"` para categóricas (ausência de contexto municipal é informação válida, não teria sentido forçar uma categoria existente)
+2. **Transformação**: `StandardScaler` nas numéricas, `OneHotEncoder(handle_unknown="ignore")` nas categóricas — ignora com segurança uma categoria nunca vista no treino (ex.: rede "Federal", presente nos dados brutos mas ausente após o filtro de população)
+3. **Split**: 70% treino / 15% validação / 15% teste, estratificado pelo alvo (`train_test_split` duplo)
+4. **Treino + seleção de modelo**: dois candidatos treinados no mesmo split de treino, comparados no de validação (ver "Escolha do Algoritmo")
+5. **Validação cruzada** (`StratifiedKFold`, 5 folds) no conjunto de treino, para garantir que o resultado não é sorte de um split específico
+6. **Avaliação final** no conjunto de teste (hold-out nunca visto durante treino/seleção) — a única vez que o teste é tocado
+
+Orquestrado por [`src/modeling/treinar.py`](src/modeling/treinar.py):
+```bash
+python -m src.modeling.treinar   # ~33 min em 1,85M alunos — ver "Como Reproduzir"
+```
+
+## Escolha do Algoritmo
+
+Dois modelos candidatos, mesma pipeline de pré-processamento:
+
+| Modelo | Por quê |
+|---|---|
+| Regressão Logística | Baseline interpretável por coeficiente — referência de "quão difícil" é o problema |
+| Random Forest | Não-linear, captura interação entre variáveis (ex.: região × faixa de risco), `feature_importances_` nativo |
+
+**Critério de escolha**: maior ROC-AUC no conjunto de validação (métrica robusta a desbalanceamento, mede separação entre classes independente do limiar de decisão).
+
+| Modelo | ROC-AUC (validação) | ROC-AUC (CV 5-fold) | Desvio padrão (CV) |
+|---|---|---|---|
+| Regressão Logística | 0,6578 | 0,6587 | 0,0009 |
+| **Random Forest** | **0,6696** | **0,6704** | **0,0008** |
+
+Random Forest venceu, mas por margem modesta (~0,01-0,02) — sinal de que a relação entre estas features e o alvo é majoritariamente simples, um modelo não-linear ganha pouco. O desvio padrão baixíssimo entre folds nos dois modelos é o dado mais importante aqui: confirma **replicabilidade** (não é sorte de um split específico), um dos critérios explícitos do enunciado.
+
+## Métricas de Avaliação
+
+Resultado do Random Forest no **conjunto de teste** (hold-out nunca visto em treino ou seleção de modelo):
+
+| Métrica | Valor |
+|---|---|
+| ROC-AUC | 0,6709 |
+| Acurácia | 0,6168 |
+| Precisão | 0,7135 |
+| Recall | 0,6001 |
+| F1 | 0,6519 |
+
+ROC-AUC no teste (0,6709) praticamente idêntico ao de validação (0,6696) — a diferença de 0,0013 é bem menor que o próprio desvio padrão entre folds (0,0008), confirmando que o modelo generaliza: não houve ajuste do critério de escolha aos dados de validação às custas do teste.
+
+![Matriz de confusão](reports/figures/04_matriz_confusao.png)
+![Curva ROC](reports/figures/05_curva_roc.png)
+
+## Interpretação dos Resultados
+
+Duas técnicas de interpretabilidade, propositalmente redundantes — quando concordam, a conclusão é mais robusta que um método isolado:
+
+- **Feature importance (MDI)**, nativa do Random Forest — [`reports/feature_importance.csv`](reports/feature_importance.csv)
+- **SHAP values** (`TreeExplainer`, amostra de 5.000 alunos do teste) — [`reports/shap_importance.csv`](reports/shap_importance.csv)
+
+![Feature importance](reports/figures/06_feature_importance.png)
+![SHAP summary](reports/figures/07_shap_summary.png)
+
+**Os dois métodos concordam no topo do ranking**: `gap_indicador_nacional` e `taxa_alfabetizacao` — ambos o contexto histórico municipal defasado — dominam a predição, seguidos por `faixa_risco_Crítico`. Os componentes de IDHM aparecem bem mais abaixo no ranking, apesar de IDHM ser, isoladamente, um indicador socioeconômico mais "completo".
+
+## Insights Encontrados
+
+- **O histórico educacional do município prediz melhor que o IDHM.** Isso é um achado, não um dado óbvio de antemão: poderia ser o contrário (desenvolvimento humano amplo pesando mais que um indicador educacional específico). Sugere que o *como* o município já vem conduzindo a alfabetização pesa mais no resultado de um aluno novo do que o desenvolvimento socioeconômico geral daquele território.
+- **ROC-AUC modesto (~0,67) é o resultado esperado, não uma falha** — depois de remover a variável que define o próprio alvo (`proficiencia`) e sem nenhuma característica *individual* do aluno disponível nestes dados (desempenho anterior, contexto familiar, frequência escolar histórica), o que resta é só contexto territorial. Um modelo que acertasse muito mais que isso com essas features seria motivo de desconfiança sobre vazamento residual, não de comemoração.
+- **Rede Municipal e Estadual têm taxas de alfabetização parecidas** nesta base (majoritariamente pública) — a rede de ensino, isoladamente, não é um preditor forte.
+
+## Limitações do Projeto
+
+- Amostra de rede **Privada** é pequena (poucas dezenas de alunos, nesta base majoritariamente pública) — nenhuma conclusão sobre essa rede é estatisticamente confiável aqui.
+- Só **2024** entra no treino/teste (ver "Descrição da Base") — com mais anos de dados publicados pelo INEP, a defasagem de 1 ano poderia ser validada em múltiplos anos (validação temporal real, não só um split aleatório dentro de um único ano).
+- **Split aleatório por aluno**, não por escola/município — alunos da mesma escola compartilham fatores não capturados aqui (mesmo professor, mesma gestão); um `GroupKFold` por escola testaria generalização geográfica de forma mais rigorosa (ver "Evoluções Futuras").
+- O modelo **não usa nenhuma característica individual do aluno** — não há, nestes dados, nada como desempenho em anos anteriores, frequência, ou contexto familiar. O teto de desempenho deste modelo é estrutural, não um problema de ajuste de hiperparâmetros.
+- Enriquecimento com Censo Escolar, PNAD ou Cadastro Único (sugeridos no enunciado como fontes externas opcionais) não foi implementado nesta entrega.
+
+## Aplicação Prática para Políticas Públicas
+
+- **Priorização territorial**: `faixa_risco_Crítico` sendo o 3º fator mais importante (atrás só dos dois indicadores de resultado) dá uma lista objetiva de municípios para focar investimento — os que combinam indicador historicamente baixo com uma distância grande da meta.
+- **Investir em gestão educacional municipal, não só em desenvolvimento socioeconômico amplo**: como o histórico educacional pesa mais que o IDHM, programas de melhoria de gestão/prática pedagógica municipal têm, por este modelo, mais sinal de impacto no curto prazo do que esperar indicadores estruturais de desenvolvimento subirem.
+- **Monitoramento preditivo ano a ano**: como o pipeline já gera o indicador municipal anualmente (Fase 2) e este modelo consome o ano anterior como feature, o par pipeline+modelo pode reavaliar risco municipal a cada nova vintage de dados publicada pelo INEP, sem trabalho manual adicional.
+
+## Possíveis Evoluções Futuras
+
+- `GroupKFold` por escola/município para validar generalização geográfica de forma mais rigorosa que o split aleatório atual.
+- Incorporar Censo Escolar (infraestrutura da escola) e PNAD/Cadastro Único (contexto socioeconômico familiar, não só municipal) — devem ter poder preditivo individual maior que IDHM municipal.
+- Série temporal mais longa (depende do INEP publicar novos anos) para validar a defasagem de 1 ano em múltiplos anos, não só 2023→2024.
+- Tunagem de hiperparâmetros (`GridSearchCV`/`Optuna`) — não foi o foco desta entrega, que priorizou a corretude da montagem do dataset (ausência de vazamento) sobre ganho marginal de métrica.
+- Modelo multiclasse por `nivel_alfabetizacao` (quando disponível) em vez de binário, para graduar o risco em vez de só classificar.
+
+---
+
+
 
 A alfabetização na infância é um dos pilares fundamentais para o desenvolvimento educacional, social e econômico do Brasil. O **Compromisso Nacional Criança Alfabetizada** mobiliza União, estados e municípios com a meta de garantir que todas as crianças estejam alfabetizadas ao final do **2º ano do ensino fundamental até 2030**.
 
@@ -13,6 +159,13 @@ O INEP definiu o ponto de corte de **743 pontos na escala de proficiência do Sa
 Compreender os fatores que influenciam a alfabetização exige integrar múltiplas fontes de dados — educacionais, territoriais, socioeconômicos — e disponibilizá-las de forma confiável para análise e tomada de decisão.
 
 ---
+
+# Pipeline de Dados (Fase 2) — base para este modelo
+
+Documentação completa do que foi entregue na **Fase 2** — a pipeline que
+produz a camada Gold consumida pelo modelo acima. Mantida como estava,
+sem mudanças estruturais nesta fase (só o rename de branding Fase 2 →
+Fase 3 no título/rodapés, ver histórico de commits).
 
 ## O Desafio
 
@@ -251,6 +404,19 @@ evolução futura):
 
 ```
 TechChallenge_3/
+├── src/                                    # Fase 3 — modelo preditivo
+│   ├── preprocessing/
+│   │   └── dataset.py                     # Monta o dataset nível-aluno a partir da Gold/Silver, sem vazamento
+│   ├── modeling/
+│   │   ├── pipeline.py                    # ColumnTransformer + classificador (scikit-learn Pipeline único)
+│   │   └── treinar.py                     # Orquestrador: split, treino, validação cruzada, seleção, salva tudo
+│   ├── evaluation/
+│   │   ├── metricas.py                    # Métricas, matriz de confusão, validação cruzada
+│   │   └── interpretabilidade.py          # SHAP (TreeExplainer)
+│   └── visualization/
+│       └── graficos.py                    # Todos os gráficos salvos em reports/figures/
+├── models/
+│   └── modelo_random_forest.joblib        # Pipeline treinado (pré-processamento + modelo) — gerado
 ├── pipeline/
 │   ├── executar_pipeline.py               # Orquestrador: Bronze->Silver->Gold com gate de qualidade
 │   ├── batch/
@@ -273,22 +439,28 @@ TechChallenge_3/
 │   └── monitoramento/                     # alertas.jsonl — gerado, não versionado
 ├── quality/
 │   └── validacao_dados.py                 # Regras de qualidade para Bronze/Silver/Gold
-├── tests/                                 # pytest — qualidade, alertas, transformações Silver
+├── tests/                                 # pytest — pipeline (qualidade, alertas, Silver) + ML (vazamento, modelo)
 ├── notebooks/
-│   ├── 01_exploracao_dados.ipynb          # Análise exploratória das 8 fontes raw
-│   ├── 02_pipeline_bronze_silver.ipynb    # Transformações, com o caso real de decisão de escopo
-│   └── 03_camada_gold_analytics.ipynb     # Gráficos da Gold + aplicação em IA
+│   ├── 01_exploracao_dados.ipynb          # Análise exploratória das 8 fontes raw (Fase 2)
+│   ├── 02_pipeline_bronze_silver.ipynb    # Transformações, com o caso real de decisão de escopo (Fase 2)
+│   ├── 03_camada_gold_analytics.ipynb     # Gráficos da Gold + aplicação em IA (Fase 2)
+│   ├── 04_eda_modelagem.ipynb             # EDA do dataset de modelagem (Fase 3)
+│   └── 05_resultados_modelo.ipynb         # Interpretação do modelo treinado — carrega, não re-treina (Fase 3)
 ├── docs/
-│   ├── arquitetura/                       # Diagramas (Mermaid + PNG) e decisões
-│   ├── [IAST] - Tech Challenge - Fase 2.pdf  # Enunciado da Fase 2 — pipeline de dados (este código ainda é isso)
-│   └── [IAST] - Tech Challenge - Fase 3.pdf  # Enunciado da Fase 3 — predição/ML sobre a Gold da Fase 2 (ainda não implementado)
+│   ├── arquitetura/                       # Diagramas (Mermaid + PNG) e decisões (Fase 2)
+│   ├── [IAST] - Tech Challenge - Fase 2.pdf  # Enunciado da Fase 2 — pipeline de dados
+│   └── [IAST] - Tech Challenge - Fase 3.pdf  # Enunciado da Fase 3 — predição/ML (este modelo)
 ├── reports/
-│   ├── dashboard.html                     # Painel analítico — HTML autocontido, gerado
+│   ├── metricas_modelo.json               # Métricas completas do treino (Fase 3) — gerado
+│   ├── feature_importance.csv             # Ranking MDI do Random Forest — gerado
+│   ├── shap_importance.csv                # Ranking |SHAP| médio — gerado
+│   ├── figures/                           # 7 gráficos do modelo (EDA + resultado) — gerado
+│   ├── dashboard.html                     # Painel analítico (Fase 2) — HTML autocontido, gerado
 │   ├── dashboard_template.html            # Template do painel (estrutura/estilo/JS)
 │   ├── dashboard_data.json                # Agregados Gold consumidos pelo painel (gerado)
 │   ├── gerar_dashboard_dados.py           # Gold (+ Silver/alunos) → dashboard.html
 │   └── presentation/
-│       ├── Alfabetizacao_Apresentacao.pptx  # Apoio para o vídeo executivo (gerado)
+│       ├── Alfabetizacao_Apresentacao.pptx  # Apoio para o vídeo executivo da Fase 2 (gerado)
 │       └── gerar_apresentacao.py            # dashboard_data.json → .pptx
 ├── requirements.txt                       # Dependências Python
 ├── pytest.ini                             # Configuração dos testes
@@ -506,13 +678,15 @@ projetado (fração de centavo) nos três cenários.
 
 ## Aplicação em IA
 
-A camada Gold está preparada para alimentar, já com o enriquecimento
-socioeconômico (IDHM) disponível como feature:
+Esta seção, na Fase 2, descrevia o que a Gold *poderia* alimentar em IA —
+na Fase 3 isso foi implementado de fato: ver
+["Modelo Preditivo (Fase 3)"](#modelo-preditivo-fase-3) no topo deste
+README para o modelo treinado, métricas e insights reais.
 
-- **Modelos preditivos de alfabetização por município** — prever municípios em risco de não atingir a meta 2030, usando IDHM e seus 3 componentes (educação, longevidade, renda) como features socioeconômicas ao lado do histórico do indicador
-- **Clusters de vulnerabilidade educacional** — segmentação de municípios (k-means/hierárquico) cruzando `faixa_risco`, `gap_meta_municipal` e IDHM para priorização de políticas públicas
-- **Análise de desigualdade educacional** — correlação entre `taxa_alfabetizacao` e IDHM por região/UF, identificando se o gap educacional acompanha o gap de desenvolvimento humano ou é um problema à parte
-- **Políticas públicas baseadas em dados** — simulação de cenários de investimento e impacto no indicador, segmentando por faixa de IDHM para direcionar recursos onde o retorno esperado é maior
+Do que foi listado na Fase 2, o que ficou de fora desta entrega (ver
+"Evoluções Futuras" na seção do modelo):
+- **Clusters de vulnerabilidade educacional** (k-means/hierárquico) — não implementado, a Fase 3 pediu classificação supervisionada, não clustering
+- **Modelo por município** (em vez de por aluno) — o enunciado da Fase 3 pede predição a nível de aluno especificamente
 
 ---
 
@@ -582,19 +756,42 @@ Alertas de qualidade e falhas de execução ficam persistidos em `data/monitoram
 python -m pytest tests/ -v
 ```
 
-24 testes cobrindo qualidade de dados, alertas e transformações da Silver — não dependem de `data/raw/` nem de execução prévia da pipeline.
+33 testes cobrindo qualidade de dados, alertas, transformações da Silver (Fase 2) e o pipeline de ML — ausência de vazamento, pré-processamento com nulos/categoria nova, formato de métricas (Fase 3). Não dependem de `data/raw/` nem de execução prévia da pipeline ou do treino.
 
-### 6. Explorar via Notebooks (ordem recomendada)
+### 6. Treinar o Modelo Preditivo (Fase 3)
+
+Pré-requisito: passo 2 já ter rodado (precisa da Gold).
+
+```bash
+python -m src.modeling.treinar
+```
+
+Monta o dataset (~1,85M alunos de 2024), treina os 2 modelos candidatos,
+roda validação cruzada 5-fold, escolhe o melhor por ROC-AUC de validação,
+reavalia no teste, e salva modelo (`models/`), métricas
+(`reports/metricas_modelo.json`) e 7 gráficos (`reports/figures/`).
+
+**Leva ~33 minutos** (medido nesta máquina) — a maior parte é a validação
+cruzada do Random Forest (5 fits completos) + SHAP numa amostra de 5.000
+alunos. Por isso os notebooks da Fase 3 carregam o modelo já salvo em vez
+de re-treinar (ver passo 7).
+
+### 7. Explorar via Notebooks (ordem recomendada)
 
 ```bash
 jupyter lab
 ```
 
+Fase 2 — pipeline de dados:
 1. [`notebooks/01_exploracao_dados.ipynb`](notebooks/01_exploracao_dados.ipynb)
 2. [`notebooks/02_pipeline_bronze_silver.ipynb`](notebooks/02_pipeline_bronze_silver.ipynb)
 3. [`notebooks/03_camada_gold_analytics.ipynb`](notebooks/03_camada_gold_analytics.ipynb)
 
-### 7. Gerar o Dashboard Analítico
+Fase 3 — modelo preditivo (pré-requisito: passo 6 já ter rodado):
+4. [`notebooks/04_eda_modelagem.ipynb`](notebooks/04_eda_modelagem.ipynb)
+5. [`notebooks/05_resultados_modelo.ipynb`](notebooks/05_resultados_modelo.ipynb)
+
+### 8. Gerar o Dashboard Analítico
 
 ```bash
 python reports/gerar_dashboard_dados.py

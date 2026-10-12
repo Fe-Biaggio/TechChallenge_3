@@ -1,0 +1,21 @@
+feature,importancia
+num__gap_indicador_nacional,0.22961597326692254
+num__taxa_alfabetizacao,0.2024554186103363
+cat__faixa_risco_Crítico,0.07692014516986548
+cat__faixa_risco_Adequado,0.05016799967815655
+cat__sigla_uf_RS,0.046207385083974095
+cat__sigla_uf_MG,0.03852142283650287
+cat__faixa_risco_Meta próxima/atingida,0.03580261775517021
+cat__sigla_uf_BA,0.03412935033938208
+cat__sigla_uf_CE,0.03201861629733378
+cat__faixa_risco_Atenção,0.02763543909119777
+num__idhm_educacao,0.027135593721994554
+num__idhm_renda,0.02596716346752622
+num__idhm_longevidade,0.024849891423556744
+num__idhm,0.02185755166669721
+cat__nome_regiao_Sudeste,0.015383439257782959
+cat__rede_label_Municipal,0.015231180106033177
+cat__rede_label_Estadual,0.015027727138908133
+cat__nome_regiao_Sul,0.013262672564241013
+cat__nome_regiao_Nordeste,0.008506095287744405
+cat__nome_regiao_Norte,0.0075604668099744

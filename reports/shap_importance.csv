@@ -1,0 +1,16 @@
+feature,importancia_media_shap
+num__gap_indicador_nacional,0.03406741924580491
+num__taxa_alfabetizacao,0.029919416878367893
+cat__faixa_risco_Crítico,0.017584519112650628
+cat__sigla_uf_MG,0.012033923943607803
+cat__sigla_uf_RS,0.010068313289902674
+cat__nome_regiao_Sudeste,0.009386344446228214
+cat__faixa_risco_Adequado,0.008467128774652301
+cat__sigla_uf_BA,0.0070448388605251835
+cat__nome_regiao_Sul,0.0057486706276312265
+cat__rede_label_Municipal,0.005151210666796466
+cat__rede_label_Estadual,0.005001095594913623
+cat__sigla_uf_CE,0.004726581770601949
+cat__faixa_risco_Atenção,0.004171787484171557
+cat__faixa_risco_Meta próxima/atingida,0.004067485048930811
+num__idhm_educacao,0.0033419900147801528

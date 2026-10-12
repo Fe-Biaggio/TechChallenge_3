@@ -1,0 +1,100 @@
+{
+  "modelo_escolhido": "random_forest",
+  "criterio_escolha": "maior ROC-AUC no conjunto de validação",
+  "resultados_validacao_por_modelo": {
+    "regressao_logistica": {
+      "metricas_validacao": {
+        "acuracia": 0.5976,
+        "precisao": 0.7102,
+        "recall": 0.5523,
+        "f1": 0.6214,
+        "roc_auc": 0.6578,
+        "matriz_confusao": [
+          [
+            74279,
+            37431
+          ],
+          [
+            74346,
+            91722
+          ]
+        ]
+      },
+      "validacao_cruzada": {
+        "roc_auc_por_fold": [
+          0.6574,
+          0.6592,
+          0.6601,
+          0.6584,
+          0.6584
+        ],
+        "roc_auc_medio": 0.6587,
+        "roc_auc_desvio_padrao": 0.0009
+      }
+    },
+    "random_forest": {
+      "metricas_validacao": {
+        "acuracia": 0.6166,
+        "precisao": 0.7134,
+        "recall": 0.5996,
+        "f1": 0.6516,
+        "roc_auc": 0.6696,
+        "matriz_confusao": [
+          [
+            71714,
+            39996
+          ],
+          [
+            66494,
+            99574
+          ]
+        ]
+      },
+      "validacao_cruzada": {
+        "roc_auc_por_fold": [
+          0.6692,
+          0.6708,
+          0.6716,
+          0.6699,
+          0.6705
+        ],
+        "roc_auc_medio": 0.6704,
+        "roc_auc_desvio_padrao": 0.0008
+      }
+    }
+  },
+  "metricas_teste_holdout": {
+    "acuracia": 0.6168,
+    "precisao": 0.7135,
+    "recall": 0.6001,
+    "f1": 0.6519,
+    "roc_auc": 0.6709,
+    "matriz_confusao": [
+      [
+        71685,
+        40025
+      ],
+      [
+        66407,
+        99661
+      ]
+    ]
+  },
+  "n_treino": 1296296,
+  "n_validacao": 277778,
+  "n_teste": 277778,
+  "features": [
+    "taxa_alfabetizacao",
+    "indicador_nacional",
+    "gap_indicador_nacional",
+    "idhm",
+    "idhm_educacao",
+    "idhm_longevidade",
+    "idhm_renda",
+    "faixa_risco",
+    "sigla_uf",
+    "nome_regiao",
+    "rede_label"
+  ],
+  "tempo_total_segundos": 1970.0
+}
