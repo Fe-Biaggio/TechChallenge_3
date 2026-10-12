@@ -39,3 +39,8 @@ pytest>=8.0.0
 
 # ─── Apresentação executiva ───────────────────────────────────────────────────
 python-pptx>=1.0.0
+
+# ─── Machine Learning (Fase 3) ─────────────────────────────────────────────────
+scikit-learn>=1.4.0
+joblib>=1.4.0
+shap>=0.44.0
