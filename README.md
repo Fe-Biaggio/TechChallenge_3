@@ -1,6 +1,6 @@
-# Tech Challenge Fase 2 — Pipeline Híbrido para Análise da Alfabetização no Brasil
+# Tech Challenge Fase 3 — Pipeline Híbrido para Análise da Alfabetização no Brasil
 
-**Pós-Tech FIAP | 1IAST | Fase 2**
+**Pós-Tech FIAP | 1IAST | Fase 3**
 
 ---
 
@@ -250,7 +250,7 @@ evolução futura):
 ## Estrutura do Repositório
 
 ```
-TechChallenge_2/
+TechChallenge_3/
 ├── pipeline/
 │   ├── executar_pipeline.py               # Orquestrador: Bronze->Silver->Gold com gate de qualidade
 │   ├── batch/
@@ -280,7 +280,8 @@ TechChallenge_2/
 │   └── 03_camada_gold_analytics.ipynb     # Gráficos da Gold + aplicação em IA
 ├── docs/
 │   ├── arquitetura/                       # Diagramas (Mermaid + PNG) e decisões
-│   └── [IAST] - Tech Challenge - Fase 2.pdf  # Enunciado original
+│   ├── [IAST] - Tech Challenge - Fase 2.pdf  # Enunciado da Fase 2 — pipeline de dados (este código ainda é isso)
+│   └── [IAST] - Tech Challenge - Fase 3.pdf  # Enunciado da Fase 3 — predição/ML sobre a Gold da Fase 2 (ainda não implementado)
 ├── reports/
 │   ├── dashboard.html                     # Painel analítico — HTML autocontido, gerado
 │   ├── dashboard_template.html            # Template do painel (estrutura/estilo/JS)
@@ -661,12 +662,17 @@ python reports/presentation/gerar_apresentacao.py
 
 ## Vídeo Executivo
 
+**Pendente para a Fase 3** — o vídeo abaixo foi gravado para a entrega da
+**Fase 2** (pipeline de dados) e ficou neste repositório por ser uma cópia
+completa daquele projeto. A Fase 3 pede seu próprio vídeo executivo, sobre
+predição/ML, não sobre a pipeline.
+
 [`reports/presentation/TechChallenge_2_Apresentacao.mp4`](reports/presentation/TechChallenge_2_Apresentacao.mp4) —
-vídeo de até 5 minutos pedido no desafio, com um integrante apresentando o
-projeto em linguagem executiva (simulando uma apresentação para liderança/
-stakeholders), apoiado nos slides de
+vídeo de até 5 minutos gravado para o desafio da Fase 2, com um integrante
+apresentando o projeto em linguagem executiva (simulando uma apresentação
+para liderança/stakeholders), apoiado nos slides de
 [`Alfabetizacao_Apresentacao.pptx`](reports/presentation/Alfabetizacao_Apresentacao.pptx)
-acima. Aborda os 4 pontos pedidos no desafio:
+acima. Aborda os 4 pontos pedidos no desafio da Fase 2:
 
 - Problema de negócio
 - Arquitetura da solução
