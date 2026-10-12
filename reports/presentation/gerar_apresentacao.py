@@ -1,5 +1,5 @@
 """
-Gera a apresentação executiva (PPTX) do Tech Challenge Fase 2.
+Gera a apresentação executiva (PPTX) do Tech Challenge Fase 3.
 
 Cobre os 4 pontos exigidos para o vídeo executivo — problema de negócio,
 arquitetura da solução, valor da pipeline para análises educacionais e
@@ -41,7 +41,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 LIGHT_BLUE = RGBColor(0xAA, 0xCC, 0xFF)
 
 FONT = "Calibri"
-FOOTER_TEXT = "Tech Challenge Fase 2  |  Pipeline Híbrido — Alfabetização no Brasil  |  Pós-Tech FIAP"
+FOOTER_TEXT = "Tech Challenge Fase 3  |  Pipeline Híbrido — Alfabetização no Brasil  |  Pós-Tech FIAP"
 
 SLIDE_W = Inches(13.333)
 SLIDE_H = Inches(7.5)
@@ -188,7 +188,7 @@ add_text(s, Inches(1.0), Inches(3.55), Inches(11.0), Inches(0.7),
           "Indicador Criança Alfabetizada", size=26, color=LIGHT_BLUE)
 add_rect(s, Inches(1.0), Inches(4.35), Inches(4.3), Inches(0.04), fill=ACCENT)
 add_text(s, Inches(1.0), Inches(4.60), Inches(11.0), Inches(0.5),
-          "Pós-Tech FIAP  |  1IAST  |  Tech Challenge Fase 2", size=16, color=LIGHT_BLUE)
+          "Pós-Tech FIAP  |  1IAST  |  Tech Challenge Fase 3", size=16, color=LIGHT_BLUE)
 add_text(s, Inches(1.0), Inches(5.05), Inches(11.0), Inches(0.5),
           "Felipe Barbato de Biaggio", size=16, color=WHITE)
 
