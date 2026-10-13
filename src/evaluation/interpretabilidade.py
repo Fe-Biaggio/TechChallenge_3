@@ -1,40 +1,87 @@
 """
-Interpretabilidade via SHAP — complementa feature_importances_ (que só diz
-"quanto", não "em que direção"). Calculado sobre uma amostra, não o dataset
-inteiro: SHAP em TreeExplainer é rápido, mas não há necessidade de rodar em
-~1,8M linhas para um gráfico — uma amostra estratificada já estabiliza a
-estimativa.
+Interpretabilidade por dois métodos independentes — quando concordam, a
+conclusão não é artefato de um método só:
+
+1. Importância por permutação (sklearn): embaralha uma feature ORIGINAL de
+   cada vez no conjunto de teste e mede a queda de ROC-AUC. Model-agnostic,
+   medida fora da amostra de treino, e no espaço de features que um gestor
+   entende (não nas colunas pós-encoding).
+
+2. SHAP: contribuição de cada feature por predição individual — diz não só
+   "quanto" mas "em que direção". TreeExplainer quando o modelo suporta;
+   caso contrário (ex.: HistGradientBoosting com splits categóricos nativos),
+   PermutationExplainer, que é exato no mesmo sentido e só mais lento.
 """
 import numpy as np
 import pandas as pd
 import shap
+from sklearn.inspection import permutation_importance
 
 
-def calcular_shap_values(pipeline, X: pd.DataFrame, amostra: int = 5000, seed: int = 42):
+def importancia_permutacao(pipeline, X: pd.DataFrame, y, amostra: int = 50_000, n_repeats: int = 5,
+                           seed: int = 42) -> pd.DataFrame:
+    if len(X) > amostra:
+        idx = np.random.default_rng(seed).choice(len(X), amostra, replace=False)
+        X, y = X.iloc[idx], np.asarray(y)[idx]
+    resultado = permutation_importance(pipeline, X, y, scoring="roc_auc", n_repeats=n_repeats,
+                                       random_state=seed, n_jobs=1)
+    df = pd.DataFrame({
+        "feature": X.columns,
+        "queda_roc_auc": resultado.importances_mean,
+        "desvio": resultado.importances_std,
+    })
+    return df.sort_values("queda_roc_auc", ascending=False).reset_index(drop=True)
+
+
+def _nomes_limpos(nomes) -> list:
+    limpos = []
+    for n in nomes:
+        n = n.split("__", 1)[-1]
+        n = n.replace("missingindicator_", "ausente: ")
+        limpos.append(n)
+    return limpos
+
+
+def calcular_shap_values(pipeline, X: pd.DataFrame, amostra: int = 2000, seed: int = 42):
     """
-    Retorna (shap_values, X_transformado_amostra, nomes_features) para o
-    classificador de árvore dentro do pipeline (TreeExplainer).
+    Retorna (shap_values, X_transformado, nomes_features, metodo) para o
+    classificador dentro do pipeline, no espaço pós-pré-processamento.
     """
     X_amostra = X.sample(n=min(amostra, len(X)), random_state=seed)
-    X_transformado = pipeline.named_steps["preprocessador"].transform(X_amostra)
-    if hasattr(X_transformado, "toarray"):
-        X_transformado = X_transformado.toarray()
+    preproc = pipeline.named_steps["preprocessador"]
+    modelo = pipeline.named_steps["classificador"]
+    X_t = preproc.transform(X_amostra)
+    if hasattr(X_t, "toarray"):
+        X_t = X_t.toarray()
+    nomes = _nomes_limpos(preproc.get_feature_names_out())
 
-    nomes = pipeline.named_steps["preprocessador"].get_feature_names_out()
-    explicador = shap.TreeExplainer(pipeline.named_steps["classificador"])
-    shap_values = explicador.shap_values(X_transformado)
+    if hasattr(modelo, "coef_"):
+        # Modelo linear: LinearExplainer é exato e instantâneo (efeito = coeficiente × desvio da média)
+        explicador = shap.LinearExplainer(modelo, X_t)
+        valores = explicador.shap_values(X_t)
+        metodo = "LinearExplainer"
+        return valores, X_t, nomes, metodo
+    try:
+        explicador = shap.TreeExplainer(modelo)
+        valores = explicador.shap_values(X_t)
+        metodo = "TreeExplainer"
+    except Exception:
+        fundo = shap.sample(X_t, 100, random_state=seed)
+        explicador = shap.PermutationExplainer(lambda d: modelo.predict_proba(d)[:, 1], fundo)
+        valores = explicador(X_t, silent=True).values
+        metodo = "PermutationExplainer"
 
-    # Para classificador binário, shap_values pode vir como lista [classe0, classe1] ou array 3D
-    if isinstance(shap_values, list):
-        shap_values = shap_values[1]
-    elif shap_values.ndim == 3:
-        shap_values = shap_values[:, :, 1]
-
-    return shap_values, X_transformado, nomes
+    if isinstance(valores, list):
+        valores = valores[1]
+    elif getattr(valores, "ndim", 2) == 3:
+        valores = valores[:, :, 1]
+    return valores, X_t, nomes, metodo
 
 
-def resumo_shap(shap_values, nomes_features, top_n: int = 15) -> pd.DataFrame:
-    """Importância média |SHAP| por feature — mesmo princípio de feature_importances_, mas model-agnostic."""
-    importancia_media = np.abs(shap_values).mean(axis=0)
-    df = pd.DataFrame({"feature": nomes_features, "importancia_media_shap": importancia_media})
+def resumo_shap(shap_values, nomes_features, top_n: int = 20) -> pd.DataFrame:
+    """|SHAP| médio por feature e direção média do efeito (sinal da correlação entre valor e SHAP)."""
+    df = pd.DataFrame({
+        "feature": nomes_features,
+        "importancia_media_shap": np.abs(shap_values).mean(axis=0),
+    })
     return df.sort_values("importancia_media_shap", ascending=False).head(top_n).reset_index(drop=True)

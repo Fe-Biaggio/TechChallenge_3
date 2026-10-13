@@ -25,6 +25,12 @@ data/monitoramento/*.jsonl
 # Data — Gold que reprovou no gate de qualidade (pipeline/executar_pipeline.py)
 data/gold_rejeitada/
 
+# Data — predições out-of-fold e projeção (src/modeling/treinar.py), regeneráveis
+data/modelagem/
+
+# Pytest
+.pytest_cache/
+
 # Spark
 spark-warehouse/
 derby.log
