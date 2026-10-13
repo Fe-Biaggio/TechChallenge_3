@@ -1,98 +1,271 @@
 """
-Gráficos de EDA e de resultado do modelo — todos salvos como PNG em
-reports/figures/, usados pelo README e pelos notebooks.
+Gráficos de EDA, avaliação do modelo e aplicação estratégica — todos
+salvos como PNG em images/ (referenciados pelo README e pelos notebooks).
 """
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import shap
-from sklearn.metrics import ConfusionMatrixDisplay, RocCurveDisplay
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import shap  # noqa: E402
+from sklearn.calibration import calibration_curve  # noqa: E402
+from sklearn.metrics import ConfusionMatrixDisplay, RocCurveDisplay  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-FIGURES_DIR = ROOT / "reports" / "figures"
-FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+IMAGES_DIR = ROOT / "images"
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
-plt.rcParams["figure.dpi"] = 110
-CORES = {"True": "#55A868", "False": "#C44E52"}
+plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False})
+AZUL, VERDE, VERMELHO, CINZA, LARANJA = "#4C72B0", "#55A868", "#C44E52", "#8C8C8C", "#DD8452"
 
 
 def _salvar(fig, nome: str) -> Path:
-    caminho = FIGURES_DIR / nome
+    caminho = IMAGES_DIR / nome
     fig.savefig(caminho, bbox_inches="tight")
     plt.close(fig)
     return caminho
 
 
-def grafico_distribuicao_alvo(df: pd.DataFrame, coluna_alvo: str = "alfabetizado") -> Path:
-    contagem = df[coluna_alvo].value_counts()
-    fig, ax = plt.subplots(figsize=(5, 4))
-    ax.bar(["Não alfabetizado", "Alfabetizado"], [contagem.get(False, 0), contagem.get(True, 0)],
-           color=["#C44E52", "#55A868"])
-    ax.set_title("Distribuição do alvo — alunos 2024")
+# ─── EDA ─────────────────────────────────────────────────────────────────────
+
+def distribuicao_alvo(df: pd.DataFrame) -> Path:
+    contagem = df["alfabetizado"].value_counts()
+    valores = [contagem.get(False, 0), contagem.get(True, 0)]
+    fig, ax = plt.subplots(figsize=(5.5, 4))
+    ax.bar(["Não alfabetizado", "Alfabetizado"], valores, color=[VERMELHO, VERDE])
+    for i, v in enumerate(valores):
+        ax.text(i, v, f"{v:,}\n({v / len(df) * 100:.1f}%)".replace(",", "."), ha="center", va="bottom")
+    ax.set_title("Distribuição do alvo — alunos 2024 com prova válida")
     ax.set_ylabel("alunos")
-    for i, v in enumerate([contagem.get(False, 0), contagem.get(True, 0)]):
-        ax.text(i, v, f"{v:,}\n({v/len(df)*100:.1f}%)", ha="center", va="bottom")
+    ax.set_ylim(0, max(valores) * 1.2)
     return _salvar(fig, "01_distribuicao_alvo.png")
 
 
-def grafico_taxa_por_regiao(df: pd.DataFrame) -> Path:
+def taxa_por_regiao(df: pd.DataFrame) -> Path:
     taxa = df.groupby("nome_regiao", observed=True)["alfabetizado"].mean().sort_values() * 100
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.barh(taxa.index.astype(str), taxa.values, color="#4C72B0")
+    ax.barh(taxa.index.astype(str), taxa.values, color=AZUL)
+    for i, v in enumerate(taxa.values):
+        ax.text(v + 0.5, i, f"{v:.1f}%", va="center")
     ax.set_xlabel("% alfabetizados")
     ax.set_title("Taxa de alfabetização por região — alunos 2024")
+    ax.set_xlim(0, 100)
     return _salvar(fig, "02_taxa_por_regiao.png")
 
 
-def grafico_correlacao_numericas(df: pd.DataFrame, colunas_numericas: list) -> Path:
-    corr = df[colunas_numericas + ["alfabetizado"]].astype(float).corr()
-    fig, ax = plt.subplots(figsize=(8, 6))
-    im = ax.imshow(corr, cmap="RdBu_r", vmin=-1, vmax=1)
-    ax.set_xticks(range(len(corr.columns)))
-    ax.set_xticklabels(corr.columns, rotation=45, ha="right")
-    ax.set_yticks(range(len(corr.columns)))
-    ax.set_yticklabels(corr.columns)
-    for i in range(len(corr.columns)):
-        for j in range(len(corr.columns)):
-            ax.text(j, i, f"{corr.iloc[i,j]:.2f}", ha="center", va="center", fontsize=7)
-    fig.colorbar(im, ax=ax, shrink=0.8)
-    ax.set_title("Correlação — features numéricas x alvo")
-    return _salvar(fig, "03_correlacao_numericas.png")
+def correlacao_com_alvo(df: pd.DataFrame, colunas: list) -> Path:
+    corr = df[colunas + ["alfabetizado"]].astype(float).corr()["alfabetizado"].drop("alfabetizado").sort_values()
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.barh(corr.index, corr.values, color=[VERMELHO if v < 0 else VERDE for v in corr.values])
+    ax.axvline(0, color="black", linewidth=0.8)
+    ax.set_title("Correlação de cada feature numérica com 'alfabetizado'")
+    ax.set_xlabel("correlação (point-biserial)")
+    return _salvar(fig, "03_correlacao_com_alvo.png")
 
 
-def grafico_matriz_confusao(y_true, y_pred, titulo: str = "Matriz de Confusão") -> Path:
+# ─── Avaliação do modelo ─────────────────────────────────────────────────────
+
+def comparacao_modelos(comparacao: pd.DataFrame) -> Path:
+    """Barras: ROC-AUC de validação cruzada (média ± desvio) + ROC-AUC de treino (gap = overfitting)."""
+    df = comparacao.sort_values("cv_roc_auc_medio")
+    y = np.arange(len(df))
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.barh(y - 0.2, df["cv_roc_auc_medio"], 0.4, xerr=df["cv_roc_auc_desvio"], color=AZUL,
+            label="validação (CV por município)")
+    ax.barh(y + 0.2, df["treino_roc_auc_medio"], 0.4, color=CINZA, label="treino")
+    ax.set_yticks(y)
+    ax.set_yticklabels(df["modelo"])
+    ax.set_xlim(0.45, max(0.8, df["treino_roc_auc_medio"].max() + 0.02))
+    ax.set_xlabel("ROC-AUC")
+    ax.set_title("Comparação de modelos — validação cruzada agrupada por município")
+    ax.legend(loc="lower right")
+    return _salvar(fig, "04_comparacao_modelos.png")
+
+
+def matriz_confusao(y_true, y_pred, titulo: str) -> Path:
     fig, ax = plt.subplots(figsize=(5, 5))
     ConfusionMatrixDisplay.from_predictions(
-        y_true, y_pred, display_labels=["Não alfabetizado", "Alfabetizado"], ax=ax, cmap="Blues"
+        y_true, y_pred, display_labels=["Não alfab.", "Alfabetizado"], ax=ax, cmap="Blues", values_format=",d"
     )
     ax.set_title(titulo)
-    return _salvar(fig, "04_matriz_confusao.png")
+    return _salvar(fig, "05_matriz_confusao.png")
 
 
-def grafico_curva_roc(y_true, y_proba, titulo: str = "Curva ROC") -> Path:
-    fig, ax = plt.subplots(figsize=(5, 5))
-    RocCurveDisplay.from_predictions(y_true, y_proba, ax=ax)
-    ax.plot([0, 1], [0, 1], linestyle="--", color="grey", label="acaso")
+def curva_roc(y_true, y_proba, y_proba_baseline, titulo: str) -> Path:
+    from sklearn.metrics import roc_auc_score
+    fig, ax = plt.subplots(figsize=(5.5, 5))
+    RocCurveDisplay.from_predictions(y_true, y_proba, ax=ax, name="modelo final")
+    auc_base = roc_auc_score(y_true, y_proba_baseline)
+    ax.plot([0, 1], [0, 1], linestyle="--", color=CINZA, label=f"baseline prevalência (AUC = {auc_base:.2f})")
+    ax.legend(loc="lower right")
     ax.set_title(titulo)
+    return _salvar(fig, "06_curva_roc.png")
+
+
+def calibracao(y_true, y_proba) -> Path:
+    prob_real, prob_prevista = calibration_curve(y_true, y_proba, n_bins=10, strategy="quantile")
+    fig, ax = plt.subplots(figsize=(5.5, 5))
+    ax.plot([0, 1], [0, 1], linestyle="--", color=CINZA, label="calibração perfeita")
+    ax.plot(prob_prevista, prob_real, marker="o", color=AZUL, label="modelo final")
+    ax.set_xlabel("probabilidade prevista de estar alfabetizado")
+    ax.set_ylabel("fração real de alfabetizados")
+    ax.set_title("Calibração — municípios nunca vistos no treino")
     ax.legend()
-    return _salvar(fig, "05_curva_roc.png")
+    return _salvar(fig, "07_calibracao.png")
 
 
-def grafico_feature_importance(df_importancia: pd.DataFrame, titulo: str, nome_arquivo: str) -> Path:
+def tradeoff_limiar(limiar: pd.DataFrame, limiar_triagem: float) -> Path:
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(limiar["limiar_p_risco"], limiar["precisao_risco"], color=VERMELHO, label="precisão (risco)")
+    ax.plot(limiar["limiar_p_risco"], limiar["recall_risco"], color=AZUL, label="recall (risco)")
+    ax.axvline(0.5, color=CINZA, linestyle=":", label="limiar padrão (0,50)")
+    valor = f"{limiar_triagem:.2f}".replace(".", ",")
+    ax.axvline(limiar_triagem, color=LARANJA, linestyle="--", label=f"priorizar top 20% ({valor})")
+    ax.set_xlabel("limiar sobre P(não alfabetizado)")
+    ax.set_title("Trade-off de limiar para identificar alunos em risco")
+    ax.legend()
+    return _salvar(fig, "08_tradeoff_limiar.png")
+
+
+def importancia_permutacao(df: pd.DataFrame) -> Path:
+    dados = df.sort_values("queda_roc_auc")
     fig, ax = plt.subplots(figsize=(7, 6))
-    dados = df_importancia.sort_values(df_importancia.columns[1])
-    ax.barh(dados["feature"], dados.iloc[:, 1], color="#4C72B0")
-    ax.set_title(titulo)
-    return _salvar(fig, nome_arquivo)
+    ax.barh(dados["feature"], dados["queda_roc_auc"], xerr=dados["desvio"], color=AZUL)
+    ax.set_xlabel("queda de ROC-AUC ao embaralhar a feature")
+    ax.set_title("Importância por permutação — conjunto de teste")
+    return _salvar(fig, "09_importancia_permutacao.png")
 
 
-def grafico_shap_summary(shap_values, X_transformado, nomes_features, nome_arquivo: str = "07_shap_summary.png") -> Path:
-    fig = plt.figure(figsize=(8, 6))
-    shap.summary_plot(shap_values, X_transformado, feature_names=nomes_features, show=False)
+def shap_summary(shap_values, X_transformado, nomes) -> Path:
+    plt.figure()
+    shap.summary_plot(shap_values, X_transformado, feature_names=nomes, show=False, max_display=15)
     fig = plt.gcf()
-    caminho = FIGURES_DIR / nome_arquivo
-    fig.savefig(caminho, bbox_inches="tight")
-    plt.close(fig)
-    return caminho
+    fig.suptitle("SHAP — efeito de cada feature na probabilidade de estar alfabetizado", y=1.02)
+    return _salvar(fig, "10_shap_summary.png")
+
+
+def desempenho_regiao(subgrupos: pd.DataFrame) -> Path:
+    df = subgrupos.sort_values("taxa_real")
+    y = np.arange(len(df))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+    ax1.barh(y - 0.2, df["taxa_real"], 0.4, color=VERDE, label="real")
+    ax1.barh(y + 0.2, df["taxa_prevista"], 0.4, color=CINZA, label="prevista")
+    ax1.set_yticks(y)
+    ax1.set_yticklabels(df.iloc[:, 0])
+    ax1.set_xlabel("% alfabetizados")
+    ax1.set_title("Taxa real vs. prevista")
+    ax1.legend()
+    ax2.barh(y, df["roc_auc"], color=AZUL)
+    ax2.set_xlim(0.5, max(0.8, df["roc_auc"].max() + 0.02))
+    ax2.set_xlabel("ROC-AUC")
+    ax2.set_title("Poder de discriminação")
+    fig.suptitle("Desempenho do modelo por região (teste)")
+    return _salvar(fig, "11_desempenho_regiao.png")
+
+
+# ─── Aplicação estratégica ───────────────────────────────────────────────────
+
+def backtest_meta(mun: pd.DataFrame, resumo: dict) -> Path:
+    fig, ax = plt.subplots(figsize=(6, 6))
+    cores = np.where(mun["real_abaixo_meta"], VERMELHO, VERDE)
+    ax.scatter(mun["taxa_prevista"], mun["taxa_real"], s=6, alpha=0.4, c=cores)
+    ax.plot([0, 100], [0, 100], linestyle="--", color=CINZA)
+    ax.set_xlabel("taxa prevista (modelo, dados de 2023)")
+    ax.set_ylabel("taxa real 2024")
+    ax.set_title(f"Backtest 2024 — rede municipal\ncorrelação {resumo['correlacao_prevista_real']:.2f} | "
+                 f"erro médio {resumo['mae_taxa_pp']:.1f} p.p.")
+    ax.scatter([], [], c=VERMELHO, label="ficou abaixo da meta 2024")
+    ax.scatter([], [], c=VERDE, label="atingiu a meta 2024")
+    ax.legend(loc="upper left")
+    return _salvar(fig, "12_backtest_meta_2024.png")
+
+
+def ranking_risco(ranking: pd.DataFrame, top_n: int = 20) -> Path:
+    df = ranking.head(top_n).iloc[::-1]
+    rotulos = df["nome_municipio"].astype(str) + " (" + df["sigla_uf"].astype(str) + ")"
+    fig, ax = plt.subplots(figsize=(8, 7))
+    ax.barh(rotulos, df["risco_previsto"], color=VERMELHO)
+    ax.scatter(100 - df["taxa_real"], rotulos, color="black", s=12, zorder=3, label="% não alfabetizados real")
+    ax.set_xlabel("% previsto de alunos não alfabetizados")
+    ax.set_title(f"Top {top_n} municípios de maior risco previsto (≥30 alunos)")
+    ax.legend(loc="lower right")
+    return _salvar(fig, "13_ranking_risco_municipios.png")
+
+
+def clusters_perfil(resumo: pd.DataFrame, nomes_colunas: dict) -> Path:
+    dados = resumo[list(nomes_colunas)]
+    padronizado = (dados - dados.mean()) / dados.std(ddof=0)
+    fig, ax = plt.subplots(figsize=(9, 0.6 * len(dados) + 2))
+    im = ax.imshow(padronizado.values, cmap="RdBu", vmin=-2, vmax=2, aspect="auto")
+    ax.set_xticks(range(len(nomes_colunas)))
+    ax.set_xticklabels(list(nomes_colunas.values()), rotation=30, ha="right")
+    ax.set_yticks(range(len(dados)))
+    ax.set_yticklabels([f"{c} (n={int(n)})" for c, n in zip(resumo.index, resumo["n_municipios"])])
+    for i in range(dados.shape[0]):
+        for j in range(dados.shape[1]):
+            ax.text(j, i, f"{dados.iloc[i, j]:.2f}", ha="center", va="center", fontsize=8)
+    fig.colorbar(im, ax=ax, shrink=0.8, label="desvio da média (z)")
+    ax.set_title("Perfil médio de cada cluster de municípios")
+    return _salvar(fig, "14_clusters_perfil.png")
+
+
+def clusters_regiao(composicao: pd.DataFrame) -> Path:
+    dados = composicao.T
+    fig, ax = plt.subplots(figsize=(8, 4))
+    base = np.zeros(len(dados))
+    paleta = plt.get_cmap("RdYlGn_r", len(dados.columns))
+    for i, cluster in enumerate(dados.columns):
+        ax.barh(dados.index, dados[cluster], left=base, label=cluster, color=paleta(i))
+        base += dados[cluster].values
+    ax.set_xlabel("% dos municípios da região")
+    ax.set_title("Composição de cada região por cluster (C1 = maior alfabetização)")
+    ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+    return _salvar(fig, "15_clusters_por_regiao.png")
+
+
+def projecao_meta(por_regiao: pd.DataFrame, ano: int, por_regiao_ajustada: pd.DataFrame = None) -> Path:
+    """Barras: % de municípios projetados abaixo da meta, por região — modelo e, se houver, nível ajustado."""
+    df = por_regiao.sort_values("pct_em_risco")
+    y = np.arange(len(df))
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    if por_regiao_ajustada is None:
+        ax.barh(y, df["pct_em_risco"], color=LARANJA)
+        pares = [(y, df["pct_em_risco"].to_numpy(), df["municipios"].to_numpy())]
+    else:
+        aj = por_regiao_ajustada.set_index("nome_regiao").loc[df["nome_regiao"]]
+        ax.barh(y + 0.2, df["pct_em_risco"], height=0.4, color=LARANJA, label="modelo (cenário pessimista)")
+        ax.barh(y - 0.2, aj["pct_em_risco"], height=0.4, color=AZUL, label="nível ajustado ao Brasil 2025 oficial")
+        pares = [(y + 0.2, df["pct_em_risco"].to_numpy(), df["municipios"].to_numpy()),
+                 (y - 0.2, aj["pct_em_risco"].to_numpy(), aj["municipios"].to_numpy())]
+        ax.legend(loc="lower right", fontsize=8)
+    for posicoes, pcts, ns in pares:
+        for yy, p, n in zip(posicoes, pcts, ns):
+            ax.text(p + 0.5, yy, f"{p:.0f}% de {n}", va="center", fontsize=8)
+    ax.set_yticks(y, df["nome_regiao"])
+    ax.set_xlabel(f"% de municípios projetados abaixo da meta {ano}")
+    ax.set_xlim(0, 100)
+    ax.set_title(f"Projeção: municípios em risco de não atingir a meta de {ano} (rede municipal)")
+    return _salvar(fig, "16_projecao_meta.png")
+
+
+def validacao_temporal(oficial: dict, validacao: dict, ano_treino: int, ano_projecao: int) -> Path:
+    """Indicador nacional oficial vs. o que o modelo previu (OOF no ano de treino, projeção no seguinte)."""
+    anos = sorted(oficial)
+    fig, ax = plt.subplots(figsize=(7, 4.2))
+    ax.plot(anos, [oficial[a] for a in anos], "-o", color=CINZA, label="Indicador oficial (INEP)")
+    ax.scatter([ano_treino], [validacao[f"prevista_oof_{ano_treino}"]], s=90, color=AZUL, zorder=3,
+               label=f"previsto out-of-fold ({ano_treino})")
+    ax.scatter([ano_projecao], [validacao[f"projetada_{ano_projecao}"]], s=90, color=LARANJA, marker="s", zorder=3,
+               label=f"projeção do modelo ({ano_projecao})")
+    for a in anos:
+        ax.annotate(f"{oficial[a]:.1f}", (a, oficial[a]), textcoords="offset points", xytext=(0, 8), ha="center")
+    ax.annotate(f"{validacao[f'projetada_{ano_projecao}']:.1f}", (ano_projecao, validacao[f"projetada_{ano_projecao}"]),
+                textcoords="offset points", xytext=(0, -16), ha="center", color=LARANJA)
+    ax.set_xticks(anos)
+    ax.set_ylabel("% alfabetizados (rede pública)")
+    ax.set_title("Validação fora do tempo: Brasil, modelo vs. indicador oficial")
+    ax.legend(loc="upper left", fontsize=8)
+    return _salvar(fig, "17_validacao_temporal_nacional.png")

@@ -1,68 +1,142 @@
 """
-Pipeline scikit-learn de pré-processamento + modelo — um único objeto
-`Pipeline` que recebe o DataFrame bruto de features e produz a predição,
-sem nenhum passo de transformação feito "na mão" fora dele (ver PDF:
-"Integração do pré-processamento diretamente ao modelo").
+Pipelines scikit-learn: pré-processamento + modelo num único objeto, sem
+nenhuma transformação feita "na mão" fora dele — então o que é aprendido no
+treino (medianas, categorias, escalas) nunca vê dado de validação/teste.
 
-Dois modelos são comparados (ver src/modeling/treinar.py):
-  - Regressão Logística: baseline linear, interpretável por coeficiente
-  - Random Forest: não-linear, captura interação entre variáveis,
-    feature_importances_ nativo
+Dois pré-processadores, um por família de modelo:
+
+  Linear (Regressão Logística)
+    - categóricas: imputação constante "Desconhecido" + one-hot
+    - contagens: imputação mediana + log1p (cauda longa) + padronização
+    - numéricas: imputação mediana COM indicador de ausência + padronização
+
+  Árvores (Random Forest, HistGradientBoosting)
+    - categóricas: imputação constante + codificação ordinal (o HGB as trata
+      como categóricas nativas — colunas vêm primeiro no ColumnTransformer
+      justamente para os índices serem fixos)
+    - contagens: imputação mediana + log1p
+    - numéricas: imputação mediana COM indicador de ausência (árvores não
+      precisam de escala)
+
+O indicador de ausência importa aqui: ~23% dos alunos estão em municípios
+sem microdados no ano anterior — "não havia dado" é informação, e a
+mediana sozinha apagaria isso.
 """
+import numpy as np
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder, StandardScaler
 
-from src.preprocessing.dataset import TODAS_CATEGORICAS, TODAS_NUMERICAS
+from src.preprocessing.dataset import FEATURES_CATEGORICAS, FEATURES_CONTAGEM, FEATURES_NUMERICAS
+
+SEED = 42
 
 
-def construir_preprocessador() -> ColumnTransformer:
-    """
-    Imputação + transformação, isoladas em um ColumnTransformer:
-      - Numéricas: mediana (robusta a outlier) + padronização
-      - Categóricas: constante "Desconhecido" (ausência de contexto
-        municipal é informação válida, não "não sei o que pôr aqui") +
-        one-hot (ignora categoria nunca vista no treino, ex. rede=Federal)
-    """
-    transformador_numerico = Pipeline([
-        ("imputador", SimpleImputer(strategy="median")),
-        ("escala", StandardScaler()),
-    ])
-    transformador_categorico = Pipeline([
-        ("imputador", SimpleImputer(strategy="constant", fill_value="Desconhecido")),
-        ("one_hot", OneHotEncoder(handle_unknown="ignore")),
-    ])
+def _log1p():
+    return FunctionTransformer(np.log1p, feature_names_out="one-to-one")
+
+
+def preprocessador_linear() -> ColumnTransformer:
     return ColumnTransformer([
-        ("num", transformador_numerico, TODAS_NUMERICAS),
-        ("cat", transformador_categorico, TODAS_CATEGORICAS),
+        ("cat", Pipeline([
+            ("imputador", SimpleImputer(strategy="constant", fill_value="Desconhecido")),
+            ("one_hot", OneHotEncoder(handle_unknown="ignore")),
+        ]), FEATURES_CATEGORICAS),
+        ("cont", Pipeline([
+            ("imputador", SimpleImputer(strategy="median")),
+            ("log", _log1p()),
+            ("escala", StandardScaler()),
+        ]), FEATURES_CONTAGEM),
+        ("num", Pipeline([
+            ("imputador", SimpleImputer(strategy="median", add_indicator=True)),
+            ("escala", StandardScaler()),
+        ]), FEATURES_NUMERICAS),
     ])
 
 
-def construir_pipeline_logistica() -> Pipeline:
-    return Pipeline([
-        ("preprocessador", construir_preprocessador()),
-        ("classificador", LogisticRegression(max_iter=1000, class_weight="balanced", random_state=42)),
+def preprocessador_arvore() -> ColumnTransformer:
+    return ColumnTransformer([
+        ("cat", Pipeline([
+            ("imputador", SimpleImputer(strategy="constant", fill_value="Desconhecido")),
+            ("ordinal", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
+        ]), FEATURES_CATEGORICAS),
+        ("cont", Pipeline([
+            ("imputador", SimpleImputer(strategy="median")),
+            ("log", _log1p()),
+        ]), FEATURES_CONTAGEM),
+        ("num", SimpleImputer(strategy="median", add_indicator=True), FEATURES_NUMERICAS),
     ])
 
 
-def construir_pipeline_random_forest() -> Pipeline:
+# Categóricas são as primeiras colunas de saída do preprocessador_arvore
+INDICES_CATEGORICOS_ARVORE = list(range(len(FEATURES_CATEGORICAS)))
+
+
+def pipeline_baseline() -> Pipeline:
+    """Referência trivial: sempre a classe majoritária / probabilidade = prevalência."""
     return Pipeline([
-        ("preprocessador", construir_preprocessador()),
+        ("preprocessador", preprocessador_arvore()),
+        ("classificador", DummyClassifier(strategy="prior")),
+    ])
+
+
+def pipeline_logistica() -> Pipeline:
+    return Pipeline([
+        ("preprocessador", preprocessador_linear()),
+        ("classificador", LogisticRegression(max_iter=2000, random_state=SEED)),
+    ])
+
+
+def pipeline_random_forest() -> Pipeline:
+    return Pipeline([
+        ("preprocessador", preprocessador_arvore()),
         ("classificador", RandomForestClassifier(
-            n_estimators=200,
-            max_depth=12,
-            min_samples_leaf=50,
-            class_weight="balanced",
-            n_jobs=-1,
-            random_state=42,
+            n_estimators=150, max_depth=14, min_samples_leaf=100,
+            max_features="sqrt", n_jobs=-1, random_state=SEED,
         )),
     ])
 
 
-MODELOS_CANDIDATOS = {
-    "regressao_logistica": construir_pipeline_logistica,
-    "random_forest": construir_pipeline_random_forest,
+def pipeline_hist_gradient_boosting(**params) -> Pipeline:
+    """
+    Early stopping é a principal defesa contra overfitting aqui: o treino para
+    quando a perda numa fração de validação interna para de melhorar.
+    """
+    base = dict(
+        categorical_features=INDICES_CATEGORICOS_ARVORE,
+        early_stopping=True,
+        validation_fraction=0.1,
+        n_iter_no_change=20,
+        max_iter=600,
+        random_state=SEED,
+    )
+    base.update(params)
+    return Pipeline([
+        ("preprocessador", preprocessador_arvore()),
+        ("classificador", HistGradientBoostingClassifier(**base)),
+    ])
+
+
+# Espaço de busca do HGB (RandomizedSearchCV — ver src/modeling/treinar.py)
+ESPACO_BUSCA_HGB = {
+    "classificador__learning_rate": [0.03, 0.05, 0.1, 0.2],
+    "classificador__max_leaf_nodes": [15, 31, 63, 127],
+    "classificador__min_samples_leaf": [20, 100, 500, 2000],
+    "classificador__l2_regularization": [0.0, 0.1, 1.0, 10.0],
+    "classificador__max_depth": [None, 6, 10],
 }
+
+CANDIDATOS = {
+    "baseline_prevalencia": pipeline_baseline,
+    "regressao_logistica": pipeline_logistica,
+    "random_forest": pipeline_random_forest,
+    "hist_gradient_boosting": pipeline_hist_gradient_boosting,
+}
+
+# Mantidos por compatibilidade com nomes usados antes desta revisão
+construir_pipeline_logistica = pipeline_logistica
+construir_pipeline_random_forest = pipeline_random_forest

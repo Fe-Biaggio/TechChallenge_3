@@ -4,7 +4,7 @@ google-cloud-bigquery>=3.0.0
 db-dtypes>=1.2.0
 
 # ─── Processamento de dados ───────────────────────────────────────────────────
-pandas>=2.0.0
+pandas>=2.2.0          # groupby.apply(include_groups=...) usado em src/evaluation
 pyarrow>=14.0.0
 
 # ─── Streaming ────────────────────────────────────────────────────────────────
@@ -42,5 +42,6 @@ python-pptx>=1.0.0
 
 # ─── Machine Learning (Fase 3) ─────────────────────────────────────────────────
 scikit-learn>=1.4.0
+nbformat>=5.9.0        # notebooks 04-06 executados via nbconvert
 joblib>=1.4.0
 shap>=0.44.0
