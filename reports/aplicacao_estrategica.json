@@ -1,0 +1,148 @@
+{
+  "backtest_meta": {
+    "municipios_avaliados": 4677,
+    "mae_taxa_pp": 9.71,
+    "correlacao_prevista_real": 0.7422,
+    "real_abaixo_meta": 2169,
+    "previsto_abaixo_meta": 2169,
+    "precisao_alerta": 0.6113,
+    "recall_alerta": 0.6113,
+    "acuracia_alerta": 0.6395
+  },
+  "validacao_temporal_nacional": {
+    "oficial_2024": 59.2,
+    "microdados_ponderado_2024": 59.2,
+    "prevista_oof_2024": 59.33,
+    "projetada_2025": 61.1,
+    "oficial_2025": 66.0,
+    "erro_projecao_2025_pp": -4.9,
+    "deslocamento_logit_ajuste": 0.2356
+  },
+  "projecao": {
+    "ano": 2025,
+    "municipios_avaliados": 4760,
+    "municipios_abaixo_meta": 2382,
+    "por_regiao": [
+      {
+        "nome_regiao": "Sul",
+        "municipios": 853,
+        "em_risco": 673,
+        "gap_medio_pp": -11.83,
+        "pct_em_risco": 78.9
+      },
+      {
+        "nome_regiao": "Norte",
+        "municipios": 403,
+        "em_risco": 264,
+        "gap_medio_pp": -4.27,
+        "pct_em_risco": 65.5
+      },
+      {
+        "nome_regiao": "Nordeste",
+        "municipios": 1640,
+        "em_risco": 839,
+        "gap_medio_pp": -1.21,
+        "pct_em_risco": 51.2
+      },
+      {
+        "nome_regiao": "Sudeste",
+        "municipios": 1438,
+        "em_risco": 483,
+        "gap_medio_pp": 5.16,
+        "pct_em_risco": 33.6
+      },
+      {
+        "nome_regiao": "Centro-Oeste",
+        "municipios": 426,
+        "em_risco": 123,
+        "gap_medio_pp": 5.19,
+        "pct_em_risco": 28.9
+      }
+    ]
+  },
+  "projecao_nivel_ajustado": {
+    "ano": 2025,
+    "taxa_nacional_alvo": 66.0,
+    "municipios_avaliados": 4760,
+    "municipios_abaixo_meta": 1757,
+    "por_regiao": [
+      {
+        "nome_regiao": "Sul",
+        "municipios": 853,
+        "em_risco": 555,
+        "gap_medio_pp": -6.95,
+        "pct_em_risco": 65.1
+      },
+      {
+        "nome_regiao": "Norte",
+        "municipios": 403,
+        "em_risco": 196,
+        "gap_medio_pp": 1.05,
+        "pct_em_risco": 48.6
+      },
+      {
+        "nome_regiao": "Nordeste",
+        "municipios": 1640,
+        "em_risco": 643,
+        "gap_medio_pp": 3.39,
+        "pct_em_risco": 39.2
+      },
+      {
+        "nome_regiao": "Sudeste",
+        "municipios": 1438,
+        "em_risco": 287,
+        "gap_medio_pp": 9.31,
+        "pct_em_risco": 20.0
+      },
+      {
+        "nome_regiao": "Centro-Oeste",
+        "municipios": 426,
+        "em_risco": 76,
+        "gap_medio_pp": 9.19,
+        "pct_em_risco": 17.8
+      }
+    ]
+  },
+  "clusters": {
+    "silhouette_por_k": {
+      "3": 0.2658,
+      "4": 0.2325,
+      "5": 0.2215,
+      "6": 0.2126,
+      "7": 0.2054
+    },
+    "k_escolhido": 3,
+    "perfil": [
+      {
+        "cluster": "C1",
+        "taxa_alfabetizacao_ant": 83.309,
+        "prof_media_ant": 775.934,
+        "prof_desvio_ant": 34.368,
+        "participacao_ant": 94.599,
+        "idhm_educacao": 0.55,
+        "idhm_renda": 0.628,
+        "n_municipios": 1618
+      },
+      {
+        "cluster": "C2",
+        "taxa_alfabetizacao_ant": 62.467,
+        "prof_media_ant": 751.67,
+        "prof_desvio_ant": 42.762,
+        "participacao_ant": 88.46,
+        "idhm_educacao": 0.638,
+        "idhm_renda": 0.714,
+        "n_municipios": 2013
+      },
+      {
+        "cluster": "C3",
+        "taxa_alfabetizacao_ant": 45.493,
+        "prof_media_ant": 734.667,
+        "prof_desvio_ant": 42.33,
+        "participacao_ant": 90.68,
+        "idhm_educacao": 0.475,
+        "idhm_renda": 0.571,
+        "n_municipios": 1717
+      }
+    ]
+  }
+}
