@@ -69,6 +69,17 @@ dataset de modelagem é montado por
 [`src/preprocessing/dataset.py`](src/preprocessing/dataset.py), que não
 refaz a limpeza: ele junta o que a pipeline já validou.
 
+O indicador municipal, o IDHM e a série nacional vêm da **Gold**. Duas
+exceções, ambas tratadas e validadas pela mesma pipeline:
+
+- **Silver, para o aluno.** O alvo é por aluno, e a Gold guarda só
+  agregados (município, UF, Brasil). O aluno existe na Silver (`alunos`),
+  que já passou pela limpeza e pelo gate de qualidade.
+- **Bronze, para a meta.** A Silver de metas guarda só a versão mais
+  recente de cada meta, revisada *depois* da prova de 2024. Usar essa
+  versão seria vazamento. A meta de 2024 como foi publicada em 2023 só
+  existe na Bronze (D4).
+
 - **Unidade**: aluno do 2º ano em 2024.
 - **População**: alunos presentes e com caderno preenchido, 1.851.852 de
   2.120.560 listados. Para quem faltou, o "não alfabetizado" do dado bruto
