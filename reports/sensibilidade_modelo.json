@@ -1,0 +1,23 @@
+{
+  "comparacao_no_teste": [
+    {
+      "modelo": "regressao_logistica",
+      "roc_auc": 0.6276,
+      "brier": 0.2286,
+      "lift_top20": 1.452,
+      "correlacao_municipal": 0.7299,
+      "mae_municipal_pp": 9.64
+    },
+    {
+      "modelo": "hist_gradient_boosting",
+      "roc_auc": 0.6344,
+      "brier": 0.2275,
+      "lift_top20": 1.454,
+      "correlacao_municipal": 0.7696,
+      "mae_municipal_pp": 8.92
+    }
+  ],
+  "sobreposicao_top20_municipios": 0.8366,
+  "correlacao_taxas_municipais_entre_modelos": 0.934,
+  "municipios_comparados": 1008
+}

@@ -19,8 +19,7 @@ Uso:
 """
 import json
 import logging
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Optional
 
 from pipeline.batch.config import MONITORAMENTO_DIR
@@ -60,7 +59,7 @@ def disparar_alerta(
     """
     nivel = nivel.upper()
     alerta = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         "nivel": nivel,
         "origem": origem,
         "mensagem": mensagem,

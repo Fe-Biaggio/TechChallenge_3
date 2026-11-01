@@ -1,115 +1,97 @@
-# Roteiro — Vídeo Executivo da Fase 3 (até 5 minutos)
+# Roteiro do Vídeo Executivo — Fase 3
 
-Apoio visual: [`reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx`](../reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx)
-(gerado por `python reports/presentation/gerar_apresentacao_fase3.py`).
+> Gerado por `python reports/presentation/gerar_apresentacao_fase3.py` junto com o deck
+> [`Alfabetizacao_Fase3_Apresentacao.pptx`](../reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx)
+> — a mesma fala está nas **notas do apresentador** de cada slide. Os números vêm dos artefatos do treino.
 
-O enunciado pede quatro pontos — cada bloco abaixo indica qual cobre:
+**Duração estimada: 4 min 21 s** (544 palavras, lidas a
+135 palavras/min, com cada número contando como 3 palavras faladas) — dentro do
+limite de 5 minutos, com folga para respiros e troca de slide.
 
-| Ponto pedido | Blocos |
+O enunciado pede que o vídeo apresente, simulando uma reunião executiva com gestores públicos:
+
+| Ponto pedido | Slides |
 |---|---|
-| Problema educacional | 1 |
-| Principais insights | 3, 4 |
-| Valor estratégico da solução | 5, 6 |
-| Como os modelos apoiam políticas públicas | 7 |
+| O problema educacional | 2 |
+| Os principais insights | 5, 6 |
+| O valor estratégico da solução | 3, 4, 7, 8 |
+| Como os modelos apoiam políticas públicas | 9, 10 |
 
-Tom: apresentação para a liderança de uma secretaria de educação — sem
-jargão técnico; o rigor aparece como "por que confiar", não como métrica.
-Tempo-alvo por bloco entre colchetes; total ≈ 4min40s (~640 palavras a
-~140 palavras/min).
+## Tempo por slide
 
----
+| # | Slide | Início | Duração | Palavras |
+|---|---|---|---|---|
+| 1 | Abertura | 0:00 | ~13 s | 28 |
+| 2 | O problema educacional | 0:13 | ~37 s | 76 |
+| 3 | A solução | 0:50 | ~27 s | 60 |
+| 4 | Por que confiar | 1:17 | ~26 s | 52 |
+| 5 | O que mais pesa | 1:43 | ~28 s | 59 |
+| 6 | Contexto não é destino | 2:11 | ~28 s | 56 |
+| 7 | Onde agir primeiro | 2:38 | ~30 s | 61 |
+| 8 | Metas | 3:08 | ~32 s | 61 |
+| 9 | Políticas públicas | 3:40 | ~21 s | 47 |
+| 10 | Conclusão | 4:00 | ~20 s | 44 |
 
-### Abertura — slide 1 [0:00–0:15]
+## Fala, slide a slide
 
-> Quem está em risco de não se alfabetizar? Neste projeto, construímos um
-> modelo que responde essa pergunta **antes** da prova — a tempo de agir.
+### Slide 1 — Abertura  ·  0:00 → 0:13
 
-### 1. O problema educacional — slide 2 [0:15–0:50]
+> Olá, eu sou Felipe Barbato de Biaggio. Neste Case 3, mostro como antecipar, antes da prova, quais crianças e quais municípios estão em risco de não se alfabetizar.
 
-> O Brasil se comprometeu a alfabetizar todas as crianças até o fim do 2º
-> ano do fundamental até 2030. O indicador nacional vem subindo — de 56% em
-> 2023 para 66% em 2025 —, mas um terço das crianças ainda termina o 2º ano
-> sem estar alfabetizada, e quase metade dos municípios ficou abaixo da
-> própria meta em 2024.
->
-> O problema é de tempo: quando o resultado sai, o ano letivo já acabou. A
-> pergunta desta fase foi: com o que já se sabe no início do ano, dá para
-> antecipar quais alunos e quais municípios estão em risco?
+### Slide 2 — O problema educacional  ·  0:13 → 0:50
 
-### 2. A solução — slides 3 e 4 [0:50–1:40]
+> O Brasil se comprometeu a alfabetizar todas as crianças até o fim do segundo ano, até 2030. O país avançou, de 56 para 66% em dois anos. Mas uma em cada três crianças ainda termina o segundo ano sem estar alfabetizada, e quase metade dos municípios ficou abaixo da própria meta em 2024. E o resultado chega tarde: quando sai, o ano letivo já acabou. A pergunta é: dá para antecipar o risco antes da prova?
 
-> Usamos a base que construímos na fase anterior — 1,85 milhão de alunos
-> avaliados em 2024 — e treinamos um modelo que estima, para cada aluno, a
-> chance de atingir o patamar de alfabetização. Somando os alunos de um
-> município, temos a taxa esperada, que pode ser comparada com a meta.
->
-> A regra mais importante: o modelo só usa o que existe **antes** da prova
-> — o desempenho do município no ano anterior, a meta, o porte da escola, a
-> rede e indicadores de desenvolvimento humano. Nada do resultado que
-> estamos tentando prever.
->
-> Por que confiar: testamos em mais de mil municípios que o modelo nunca
-> viu, comparamos com um palpite trivial, e escolhemos o modelo mais simples
-> entre os que empataram — uma regressão logística, fácil de explicar. E as
-> probabilidades são calibradas: quando o modelo diz 60%, cerca de 60% de
-> fato se alfabetizam.
+### Slide 3 — A solução  ·  0:50 → 1:17
 
-### 3. Principais insights — slide 5 [1:40–2:20]
+> Com a base da fase anterior, quase dois milhões de alunos, treinamos um modelo que estima a chance de cada criança se alfabetizar. Somando por município, temos a taxa esperada, comparável com a meta. A regra de ouro: o modelo só usa o que existe antes da prova, como o histórico do município, a meta, a escola e o IDHM.
 
-> O que mais pesa no resultado de um aluno é o **histórico educacional do
-> município**: a taxa de alfabetização e a proficiência do ano anterior.
-> Indicadores socioeconômicos amplos, como o IDHM, pesam bem menos.
->
-> A mensagem para a gestão: as alavancas de maior efeito são de gestão
-> educacional — formação, material, acompanhamento —, que respondem em um
-> ano letivo, e não só fatores estruturais, que levam uma década para mudar.
+### Slide 4 — Por que confiar  ·  1:17 → 1:43
 
-### 4. Padrões regionais — slide 8 [2:20–2:50]
+> Por que confiar? Testamos o modelo em mais de mil municípios que ele nunca viu. Entre três algoritmos, ficamos com o mais simples entre os empatados, uma regressão logística, explicável a qualquer gestor. E as probabilidades são confiáveis: para o Brasil em 2024, o modelo previu 59,3%, e o oficial foi 59,2%.
 
-> Agrupamos os municípios em três perfis. O de maior alfabetização **não**
-> é o mais rico. O caso mais claro é o Ceará: mais de 90% dos municípios
-> estão no perfil de topo, com IDHM Educação bem abaixo do perfil mais
-> rico — que alfabetiza só 62% das crianças. O estado tem
-> programa próprio de alfabetização há quase duas décadas. Contexto
-> desfavorável não é destino — e isso indica onde buscar práticas para
-> replicar.
+### Slide 5 — O que mais pesa  ·  1:43 → 2:11
 
-### 5. Valor estratégico: onde agir primeiro — slide 6 [2:50–3:25]
+> O principal achado: o que mais pesa é o histórico educacional do município. Só com a taxa, a proficiência e a participação do ano anterior, o modelo entrega 97% do seu poder de previsão; o IDHM, sozinho, só 26%. Para a gestão: as alavancas mais fortes são educacionais, como formação, material e acompanhamento, e respondem em um ano letivo.
 
-> Individualmente, o modelo erra bastante — ele não conhece a criança, só o
-> contexto. Mas para **priorizar**, funciona: se um programa só consegue
-> atender 20% dos alunos, escolhendo pelo modelo ele encontra 1,5 vez mais
-> crianças em risco do que escolhendo ao acaso. No nível do município, a
-> taxa prevista tem correlação de 0,74 com a real.
+### Slide 6 — Contexto não é destino  ·  2:11 → 2:38
 
-### 6. Valor estratégico: metas — slide 7 [3:25–4:05]
+> E contexto não é destino. O perfil de municípios com maior alfabetização tem IDHM menor que o intermediário, e alfabetiza 21 pontos a mais. O Ceará é o caso mais claro: 93% dos seus municípios estão nesse perfil, e o estado tem programa próprio de alfabetização desde 2007. É ali que vale buscar práticas para replicar.
 
-> Fizemos o teste no passado: com dados de 2023, o modelo apontou os
-> municípios que ficariam abaixo da meta de 2024 — e acertou 6 em cada 10.
->
-> Para 2025, temos uma validação real: o resultado nacional já saiu, 66%. O
-> modelo projetou 61% — acertou a direção, mas subestimou o avanço. Por
-> isso apresentamos dois cenários: entre 1.757 e 2.382 municípios com risco
-> de ficar abaixo da meta. A ordem de prioridade é a mesma nos dois.
+### Slide 7 — Onde agir primeiro  ·  2:38 → 3:08
 
-### 7. Como apoia políticas públicas — slides 9 e 10 [4:05–4:40]
+> Para uma criança específica, o modelo erra bastante: ele vê o contexto, não a criança. Mas para priorizar, ele funciona. Atendendo os 20% indicados pelo modelo, um programa encontra uma vez e meia mais crianças em risco do que escolhendo ao acaso. E o risco está concentrado: Bahia e Rio Grande do Norte somam 66% dos 50 municípios de maior risco.
 
-> Três usos concretos: priorizar municípios antes do ano letivo; alertar
-> sobre metas a tempo de pactuar apoio; e monitorar a cada ano, porque a
-> base se atualiza a cada divulgação do INEP.
->
-> Um cuidado: o modelo indica onde concentrar **apoio**, nunca quem punir.
-> Os próximos passos são incluir dados do Censo Escolar e do CadÚnico e
-> fazer um piloto com uma secretaria para medir o efeito da priorização.
->
-> Obrigado.
+### Slide 8 — Metas  ·  3:08 → 3:40
 
----
+> No teste com o passado, seis em cada dez alertas de meta se confirmaram. Para 2025, tivemos uma validação real: o Brasil fez 66%, e o modelo projetou 61%. Acertou a direção, mas subestimou o avanço. Por isso trabalhamos com dois cenários: entre 37% e 50% dos municípios com risco de ficar abaixo da meta, com a mesma ordem de prioridade.
 
-## Checklist de gravação
+### Slide 9 — Políticas públicas  ·  3:40 → 4:00
 
-- [ ] Gerar o deck atualizado (`python reports/presentation/gerar_apresentacao_fase3.py`)
-- [ ] Ensaiar com cronômetro — cortar o bloco 4 se passar de 4min50s
-- [ ] Gravar tela (slides) + voz; câmera opcional
-- [ ] Exportar em MP4, salvar em `reports/presentation/` (ou link no README se > 100 MB)
-- [ ] Atualizar o link na seção "Apresentação e Vídeo Executivo" do README
+> Na prática, são três usos: priorizar municípios antes do ano letivo, alertar sobre metas a tempo de pactuar apoio e monitorar a cada ano, já que a base se atualiza a cada divulgação do INEP. Com um cuidado: o modelo indica onde concentrar apoio, nunca quem punir.
+
+### Slide 10 — Conclusão  ·  4:00 → 4:21
+
+> Resumindo: o histórico educacional é o melhor sinal de risco, contexto não é destino, e dá para agir antes da prova. Próximos passos: incluir o Censo Escolar e o CadÚnico, revalidar com os dados de 2025 e fazer um piloto com uma secretaria. Obrigado.
+
+## Dicas de gravação
+
+- **Ritmo**: fale pausado (~135 palavras/min). Cronometre um ensaio: se passar de 4 min 50 s,
+  encurte a fala do slide 6 (perfis) — os outros cobrem os quatro pontos obrigatórios.
+- **Tom**: reunião com gestores — fale de crianças, municípios e decisões; evite "ROC-AUC", "features",
+  "regressão" fora do slide 4.
+- **Tela**: modo apresentação do PowerPoint em tela cheia; use o modo do apresentador para ler as notas.
+- **Ao apontar números**: os valores falados são os mesmos dos slides, arredondados para a fala.
+- **Gravação**: tela + voz (câmera opcional), exporte em MP4. Se passar de 100 MB, publique como link e
+  coloque o link na seção "Apresentação e Vídeo Executivo" do README.
+
+## Perguntas prováveis (se houver discussão depois)
+
+- **"O acerto individual não é baixo?"** — É, e é esperado: não há nenhum dado individual da criança na base.
+  O uso é priorizar grupos e municípios, onde a correlação com o resultado real é de
+  0,74.
+- **"Por que não um modelo mais sofisticado?"** — Testamos dois (Random Forest e Gradient Boosting). Ganham
+  milésimos de acurácia, priorizam praticamente as mesmas crianças, e perdem a explicabilidade. O Gradient
+  Boosting fica como modelo desafiante para a revalidação com 2025.
+- **"Por que o estado do aluno não entra?"** — Com um ano de treino, a variável aprenderia o choque daquele ano
+  (as enchentes no RS em 2024) e o contaria duas vezes na projeção do ano seguinte.

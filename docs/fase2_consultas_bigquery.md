@@ -1,3 +1,15 @@
+# Consultas de referência ao BigQuery (Base dos Dados) — Fase 2
+
+Consultas SQL fornecidas pela Base dos Dados para cada tabela do dataset
+[Avaliação da Alfabetização](https://basedosdados.org/dataset/073a39d4-89cf-4068-b1e8-34ed0d9c0b72),
+guardadas como referência da Fase 2. A pipeline usa essas tabelas via
+`pipeline/batch/01_ingestao_bronze.py` (BigQuery quando há projeto GCP
+configurado; caso contrário, os CSVs de `data/raw/`).
+
+`billing_project_id` é o **ID de um projeto GCP** com faturamento ativo — não
+o ID da conta de faturamento (ver `.env.example`).
+
+```python
 import basedosdados as bd
 
 billing_id = <seu_billing_id>
@@ -268,3 +280,4 @@ LEFT JOIN `dicionario_alfabetizado`
 """
 
 bd.read_sql(query = query, billing_project_id = billing_id)
+```

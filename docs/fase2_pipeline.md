@@ -134,6 +134,9 @@ mais o diretório de referência `br_bd_diretorios_brasil`:
 | `br_bd_diretorios_brasil.uf` | Diretório | sigla | Nome e região de cada UF |
 | `atlas_desenvolvimento_humano_municipio` | Enriquecimento externo | ano, Codmun7 | IDHM e componentes (educação/longevidade/renda) por município — censos 1991/2000/2010 |
 
+As consultas SQL de referência de cada tabela estão em
+[`fase2_consultas_bigquery.md`](fase2_consultas_bigquery.md).
+
 Não existe uma tabela de resultado nacional própria — a série Brasil na Gold é
 derivada da coluna `taxa_alfabetizacao` já presente em `meta_alfabetizacao_brasil`.
 
@@ -581,7 +584,7 @@ Lê Gold (+ `alunos` da Silver, só para agregados — nenhum microdado individu
 
 ## Apresentação Executiva
 
-[`reports/presentation/Alfabetizacao_Apresentacao.pptx`](../reports/presentation/Alfabetizacao_Apresentacao.pptx) —
+[`reports/presentation/Alfabetizacao_Fase2_Apresentacao.pptx`](../reports/presentation/Alfabetizacao_Fase2_Apresentacao.pptx) —
 apoio para o vídeo executivo pedido no desafio (problema de negócio,
 arquitetura da solução, valor para análises educacionais, potencial de IA),
 mais uma seção de qualidade/limitações dos dados. 9 slides, paleta e layout
@@ -602,7 +605,7 @@ python reports/presentation/gerar_apresentacao.py
 
 [`reports/presentation/TechChallenge_2_Apresentacao.mp4`](../reports/presentation/TechChallenge_2_Apresentacao.mp4) —
 vídeo de até 5 minutos gravado para o desafio da Fase 2, apoiado nos slides
-de [`Alfabetizacao_Apresentacao.pptx`](../reports/presentation/Alfabetizacao_Apresentacao.pptx).
+de [`Alfabetizacao_Fase2_Apresentacao.pptx`](../reports/presentation/Alfabetizacao_Fase2_Apresentacao.pptx).
 Aborda os 4 pontos pedidos naquela fase: problema de negócio, arquitetura da
 solução, valor da pipeline para análises educacionais e potencial uso para
 inteligência artificial. O material da Fase 3 está no README principal.

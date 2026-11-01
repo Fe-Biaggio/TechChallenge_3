@@ -38,21 +38,6 @@ def calcular_metricas(y_true, y_pred, y_proba) -> dict:
     }
 
 
-# Mantido por compatibilidade com o nome usado antes desta revisão
-def validacao_cruzada(pipeline, X, y, n_splits: int = 5, groups=None) -> dict:
-    from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold, cross_val_score
-    if groups is None:
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    else:
-        cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    scores = cross_val_score(pipeline, X, y, cv=cv, scoring="roc_auc", groups=groups)
-    return {
-        "roc_auc_por_fold": [round(float(s), 4) for s in scores],
-        "roc_auc_medio": round(float(scores.mean()), 4),
-        "roc_auc_desvio_padrao": round(float(scores.std()), 4),
-    }
-
-
 def analise_limiar(y_true, y_proba) -> pd.DataFrame:
     """
     Precisão e recall da classe de RISCO (não alfabetizado) para cada limiar
@@ -113,17 +98,75 @@ def desempenho_por_subgrupo(df: pd.DataFrame, coluna_grupo: str, coluna_alvo: st
     return pd.DataFrame(linhas).sort_values("roc_auc").reset_index(drop=True)
 
 
-def feature_importance_random_forest(pipeline, top_n: int = 20) -> pd.DataFrame:
-    nomes = pipeline.named_steps["preprocessador"].get_feature_names_out()
-    importancias = pipeline.named_steps["classificador"].feature_importances_
-    df = pd.DataFrame({"feature": nomes, "importancia": importancias})
-    return df.sort_values("importancia", ascending=False).head(top_n).reset_index(drop=True)
-
-
 def coeficientes_regressao_logistica(pipeline, top_n: int = 20) -> pd.DataFrame:
+    """
+    Coeficientes da Regressão Logística no espaço pós-pré-processamento
+    (features padronizadas, one-hot e indicadores de ausência), ordenados por
+    magnitude. Como as numéricas são padronizadas, magnitudes são comparáveis:
+    efeito no log-odds de estar alfabetizado por 1 desvio padrão da feature.
+    """
     nomes = pipeline.named_steps["preprocessador"].get_feature_names_out()
     coefs = pipeline.named_steps["classificador"].coef_[0]
     df = pd.DataFrame({"feature": nomes, "coeficiente": coefs})
     df["abs_coeficiente"] = df["coeficiente"].abs()
     return (df.sort_values("abs_coeficiente", ascending=False).head(top_n)
             .drop(columns="abs_coeficiente").reset_index(drop=True))
+
+
+def bootstrap_por_grupo(y_true, y_proba, grupos, n_boot: int = 300, fracao_top: float = 0.20,
+                        seed: int = 42) -> dict:
+    """
+    Intervalo de confiança de 95% por bootstrap AGRUPADO: reamostra
+    municípios inteiros (com reposição), não alunos — os alunos de um mesmo
+    município não são independentes, e reamostrá-los um a um daria um
+    intervalo estreito demais. Reporta ROC-AUC e o lift dos `fracao_top` de
+    maior risco.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_proba = np.asarray(y_proba, dtype=float)
+    codigos, grupos_idx = np.unique(np.asarray(grupos), return_inverse=True)
+    ordem = np.argsort(grupos_idx, kind="stable")
+    limites = np.r_[0, np.cumsum(np.bincount(grupos_idx))]
+    indices_por_grupo = [ordem[limites[i]:limites[i + 1]] for i in range(len(codigos))]
+
+    rng = np.random.default_rng(seed)
+    aucs, lifts = [], []
+    for _ in range(n_boot):
+        escolhidos = rng.integers(0, len(codigos), len(codigos))
+        idx = np.concatenate([indices_por_grupo[g] for g in escolhidos])
+        yt, yp = y_true[idx], y_proba[idx]
+        aucs.append(roc_auc_score(yt, yp))
+        risco = 1 - yt
+        n_top = max(1, int(round(len(idx) * fracao_top)))
+        topo = np.argsort(yp, kind="stable")[:n_top]  # menor P(alfabetizado) = maior risco
+        lifts.append(risco[topo].mean() / risco.mean())
+
+    def _ic(valores):
+        return [round(float(np.percentile(valores, 2.5)), 4), round(float(np.percentile(valores, 97.5)), 4)]
+
+    return {
+        "n_boot": n_boot,
+        "unidade_reamostrada": "município",
+        "roc_auc_ic95": _ic(aucs),
+        f"lift_top{int(fracao_top * 100)}_ic95": _ic(lifts),
+    }
+
+
+def comparacao_pareada(scores_a, scores_b) -> dict:
+    """
+    Compara dois modelos avaliados nos MESMOS folds (diferença fold a fold).
+    Pareado é mais justo que comparar médias soltas: a variação entre folds
+    (municípios mais fáceis ou mais difíceis) afeta os dois modelos igualmente.
+    """
+    diferencas = np.asarray(scores_a, dtype=float) - np.asarray(scores_b, dtype=float)
+    n = len(diferencas)
+    media, desvio = float(diferencas.mean()), float(diferencas.std(ddof=1)) if n > 1 else 0.0
+    erro = desvio / np.sqrt(n) if n > 1 else 0.0
+    return {
+        "diferenca_media": round(media, 4),
+        "desvio_diferenca": round(desvio, 4),
+        "ic95_aprox": [round(media - 2.776 * erro, 4), round(media + 2.776 * erro, 4)] if n == 5
+        else [round(media - 1.96 * erro, 4), round(media + 1.96 * erro, 4)],
+        "folds_a_melhor": int((diferencas > 0).sum()),
+        "n_folds": n,
+    }

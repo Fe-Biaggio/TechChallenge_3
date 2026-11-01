@@ -1,0 +1,28 @@
+name: testes
+
+# Roda a suíte de testes (vazamento, redundância, pipelines, métricas, aplicação
+# estratégica, qualidade de dados e transformações da Silver) a cada push e PR.
+# Os testes usam dados sintéticos — não dependem de data/raw nem de credenciais.
+on:
+  push:
+    branches: [main, "feature/**", "fase-3/**"]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      # Só o necessário para os testes — as dependências de ingestão (BigQuery,
+      # Kafka) ficam de fora porque nenhum teste as importa.
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install "pandas>=2.2" "pyarrow>=14" "scikit-learn>=1.4" "shap>=0.44" "matplotlib>=3.8" \
+                      "joblib>=1.4" "python-dotenv>=1.0" "pytest>=8.0"
+      - name: Rodar testes
+        run: python -m pytest tests/ -v

@@ -41,6 +41,7 @@ def _log1p():
 
 
 def preprocessador_linear() -> ColumnTransformer:
+    """ColumnTransformer para modelos lineares: imputação, one-hot, log1p e padronização."""
     return ColumnTransformer([
         ("cat", Pipeline([
             ("imputador", SimpleImputer(strategy="constant", fill_value="Desconhecido")),
@@ -59,6 +60,7 @@ def preprocessador_linear() -> ColumnTransformer:
 
 
 def preprocessador_arvore() -> ColumnTransformer:
+    """ColumnTransformer para árvores: imputação, codificação ordinal e log1p, sem escala."""
     return ColumnTransformer([
         ("cat", Pipeline([
             ("imputador", SimpleImputer(strategy="constant", fill_value="Desconhecido")),
@@ -84,14 +86,21 @@ def pipeline_baseline() -> Pipeline:
     ])
 
 
-def pipeline_logistica() -> Pipeline:
+def pipeline_logistica(**params) -> Pipeline:
+    """
+    Regularização L2; a força (C) é escolhida por busca em validação cruzada
+    agrupada (ESPACO_BUSCA_LOGISTICA). C menor = coeficientes mais encolhidos.
+    """
+    base = dict(C=1.0, max_iter=2000, random_state=SEED)
+    base.update(params)
     return Pipeline([
         ("preprocessador", preprocessador_linear()),
-        ("classificador", LogisticRegression(max_iter=2000, random_state=SEED)),
+        ("classificador", LogisticRegression(**base)),
     ])
 
 
 def pipeline_random_forest() -> Pipeline:
+    """Random Forest regularizado (profundidade e folha mínima limitadas) com o pré-processador de árvores."""
     return Pipeline([
         ("preprocessador", preprocessador_arvore()),
         ("classificador", RandomForestClassifier(
@@ -130,13 +139,14 @@ ESPACO_BUSCA_HGB = {
     "classificador__max_depth": [None, 6, 10],
 }
 
+# Busca da Regressão Logística (GridSearchCV — ver src/modeling/treinar.py)
+ESPACO_BUSCA_LOGISTICA = {
+    "classificador__C": [0.001, 0.01, 0.1, 1.0, 10.0],
+}
+
 CANDIDATOS = {
     "baseline_prevalencia": pipeline_baseline,
     "regressao_logistica": pipeline_logistica,
     "random_forest": pipeline_random_forest,
     "hist_gradient_boosting": pipeline_hist_gradient_boosting,
 }
-
-# Mantidos por compatibilidade com nomes usados antes desta revisão
-construir_pipeline_logistica = pipeline_logistica
-construir_pipeline_random_forest = pipeline_random_forest

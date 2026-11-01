@@ -4,15 +4,15 @@
     "mae_taxa_pp": 9.71,
     "correlacao_prevista_real": 0.7422,
     "real_abaixo_meta": 2169,
-    "previsto_abaixo_meta": 2169,
-    "precisao_alerta": 0.6113,
-    "recall_alerta": 0.6113,
+    "previsto_abaixo_meta": 2171,
+    "precisao_alerta": 0.6112,
+    "recall_alerta": 0.6118,
     "acuracia_alerta": 0.6395
   },
   "validacao_temporal_nacional": {
     "oficial_2024": 59.2,
     "microdados_ponderado_2024": 59.2,
-    "prevista_oof_2024": 59.33,
+    "prevista_oof_2024": 59.34,
     "projetada_2025": 61.1,
     "oficial_2025": 66.0,
     "erro_projecao_2025_pp": -4.9,
@@ -26,15 +26,15 @@
       {
         "nome_regiao": "Sul",
         "municipios": 853,
-        "em_risco": 673,
-        "gap_medio_pp": -11.83,
-        "pct_em_risco": 78.9
+        "em_risco": 674,
+        "gap_medio_pp": -11.82,
+        "pct_em_risco": 79.0
       },
       {
         "nome_regiao": "Norte",
         "municipios": 403,
         "em_risco": 264,
-        "gap_medio_pp": -4.27,
+        "gap_medio_pp": -4.26,
         "pct_em_risco": 65.5
       },
       {
@@ -47,15 +47,15 @@
       {
         "nome_regiao": "Sudeste",
         "municipios": 1438,
-        "em_risco": 483,
-        "gap_medio_pp": 5.16,
-        "pct_em_risco": 33.6
+        "em_risco": 482,
+        "gap_medio_pp": 5.15,
+        "pct_em_risco": 33.5
       },
       {
         "nome_regiao": "Centro-Oeste",
         "municipios": 426,
         "em_risco": 123,
-        "gap_medio_pp": 5.19,
+        "gap_medio_pp": 5.18,
         "pct_em_risco": 28.9
       }
     ]
@@ -70,14 +70,14 @@
         "nome_regiao": "Sul",
         "municipios": 853,
         "em_risco": 555,
-        "gap_medio_pp": -6.95,
+        "gap_medio_pp": -6.94,
         "pct_em_risco": 65.1
       },
       {
         "nome_regiao": "Norte",
         "municipios": 403,
         "em_risco": 196,
-        "gap_medio_pp": 1.05,
+        "gap_medio_pp": 1.06,
         "pct_em_risco": 48.6
       },
       {

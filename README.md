@@ -1,6 +1,6 @@
 # Tech Challenge Fase 3 — Predição e Inteligência Analítica para Alfabetização no Brasil
 
-**Pós-Tech FIAP | 1IAST | Fase 3**
+**Pós-Tech FIAP | 1IAST | Fase 3** · [![testes](https://github.com/Fe-Biaggio/TechChallenge_3/actions/workflows/testes.yml/badge.svg)](https://github.com/Fe-Biaggio/TechChallenge_3/actions/workflows/testes.yml)
 
 Modelo supervisionado que estima, **antes da prova**, a chance de cada aluno
 do 2º ano do ensino fundamental ser considerado alfabetizado. Somando os
@@ -13,13 +13,14 @@ continua neste repositório e está documentada em
 |---|---|
 | **Pergunta** | Com o que já se sabe no início do ano letivo, dá para antecipar quais alunos e quais municípios estão em risco de não alfabetizar? |
 | **Base** | 1.851.852 alunos de 2024 com prova válida, 5.517 municípios, 16 features que existem antes da prova |
-| **Validação** | Teste em 1.164 municípios **nunca vistos**; validação cruzada agrupada por município; validação fora do tempo com o indicador nacional de 2025 |
-| **Modelo** | Regressão Logística, escolhida pela regra de 1 desvio padrão entre 3 algoritmos (+ baseline) |
-| **Resultado** | ROC-AUC 0,628 no teste (baseline 0,500). Priorizando os 20% de maior risco, encontra 1,45× mais alunos em risco que ao acaso |
+| **Validação** | Teste em 1.164 municípios **nunca vistos** (com intervalo de confiança por bootstrap); validação cruzada agrupada por município; comparação pareada entre modelos; validação fora do tempo com o indicador nacional de 2025 |
+| **Modelo** | Regressão Logística regularizada (C = 0,01), escolhida pela regra de 1 desvio padrão entre 3 algoritmos otimizados (+ baseline) |
+| **Resultado** | ROC-AUC 0,628 no teste (IC 95%: 0,594–0,655; baseline 0,500). Priorizando os 20% de maior risco, encontra 1,45× mais alunos em risco que ao acaso (IC 95%: 1,36–1,49×) |
 | **Uso** | Ranking de risco municipal; alerta de metas (backtest 2024: correlação 0,74 entre taxa prevista e real); projeção 2025 em dois cenários; perfis de municípios |
 
 **Navegação:** [enunciado](docs/%5BIAST%5D%20-%20Tech%20Challenge%20-%20Fase%203.pdf) ·
-[decisões analíticas D1–D20](docs/decisoes_analiticas.md) ·
+[decisões analíticas D1–D22](docs/decisoes_analiticas.md) ·
+[model card](docs/model_card.md) ·
 [notebooks](#notebooks) ·
 [como reproduzir](#como-reproduzir) ·
 [apresentação e roteiro do vídeo](#apresentação-e-vídeo-executivo)
@@ -55,11 +56,11 @@ perguntas de negócio do enunciado:
 
 | Pergunta | Onde é respondida |
 |---|---|
-| Quais fatores mais impactam a alfabetização? | [§7](#7-interpretação-dos-resultados): importância por permutação + SHAP + teste de hipóteses |
+| Quais fatores mais impactam a alfabetização? | [§7](#7-interpretação-dos-resultados): ablação por grupo de fatores + teste de hipóteses |
 | Quais municípios apresentam maior risco educacional? | [§8.1](#81-municípios-de-maior-risco): ranking out-of-fold |
 | Como prever municípios que podem não atingir metas futuras? | [§8.2](#82-alerta-de-metas-backtest-2024)–[§8.3](#83-projeção-2025-e-validação-fora-do-tempo): backtest 2024, validação temporal e projeção 2025 |
 | Quais regiões possuem padrões semelhantes? | [§8.4](#84-municípios-e-regiões-com-padrões-semelhantes): clusters de perfil municipal |
-| Quais variáveis mais influenciam o desempenho educacional? | [§7](#7-interpretação-dos-resultados) |
+| Quais variáveis possuem maior influência nos modelos? | [§7](#7-interpretação-dos-resultados): coeficientes, importância por permutação e SHAP |
 
 ## 3. Descrição da Base Utilizada
 
@@ -90,11 +91,13 @@ exceções, ambas tratadas e validadas pela mesma pipeline:
 
 | Grupo | Features | Origem |
 |---|---|---|
-| Desempenho do município em 2023 | `taxa_alfabetizacao_ant`, `nivel_alfabetizacao_ant`, `participacao_ant` | Gold + metas (versão de 2023) |
-| Proficiência do município em 2023 | `prof_media_ant`, `prof_desvio_ant`, `prof_p25_ant`, `mun_n_alunos_ant` | Microdados de 2023 agregados |
-| Meta | `meta_ano` (meta de 2024 como publicada em 2023), `esforco_meta` (meta − resultado da rede municipal em 2023) | Metas (Bronze, versão de 2023) |
-| Escola/aluno | `rede_label`, `escola_n_alunos` | Lista de alunos da avaliação |
-| Território (estático) | `idhm_educacao`, `idhm_renda`, `idhm_longevidade`, `capital_uf`, `amazonia_legal` | Atlas/IDHM 2010 + diretório |
+| Histórico educacional do município (2023) | `taxa_alfabetizacao_ant`, `nivel_alfabetizacao_ant`, `participacao_ant`, `prof_media_ant`, `prof_desvio_ant`, `prof_p25_ant` | Gold, metas (versão de 2023) e microdados de 2023 agregados |
+| Meta e esforço | `meta_ano` (meta de 2024 como publicada em 2023), `esforco_meta` (meta − resultado da rede municipal em 2023) | Metas (Bronze, versão de 2023) |
+| Socioeconômico | `idhm_educacao`, `idhm_renda`, `idhm_longevidade` | Atlas do Desenvolvimento Humano (IDHM 2010) |
+| Escola e rede | `rede_label`, `escola_n_alunos` | Lista de alunos da avaliação |
+| Território e porte | `capital_uf`, `amazonia_legal`, `mun_n_alunos_ant` | Diretório de municípios + microdados de 2023 |
+
+Os mesmos cinco grupos são usados na ablação (§7).
 
 **Feature engineering.** As features que mais pesam no modelo foram
 construídas nesta fase, não vieram prontas:
@@ -119,6 +122,7 @@ evidência nos dados:
 | `presenca`, `preenchimento_caderno` | Só existem no dia da prova; definem a população, não são features | D5 |
 | Histórico da escola via `id_escola` | O código é re-mascarado a cada ano: só 865 de ~37 mil pares se repetem | D6 |
 | UF e região | Com um ano de treino, aprendem o choque estadual do próprio ano (vazamento no nível do estado) | D8 |
+| Meta e indicador **estaduais** | São iguais para todos os municípios do estado: funcionariam como a UF, com o mesmo problema. A meta que importa para o aluno é a do seu município | D8 |
 
 Também ficaram de fora **redundâncias**, que não são vazamento mas impedem a
 leitura dos coeficientes (D7):
@@ -184,14 +188,28 @@ treino de cada fold:
 
 ```
 1.851.852 alunos de 2024
- ├── 20% dos MUNICÍPIOS → TESTE (370.330 alunos, 1.164 municípios), usado uma única vez
+ ├── 20% dos MUNICÍPIOS → TESTE (370.330 alunos, 1.164 municípios)
+ │                         isolado de toda escolha; avalia o modelo escolhido uma vez
  └── 80% → TREINO (1.481.522 alunos, 4.353 municípios)
-       ├── subamostra de 300 mil → busca de hiperparâmetros (15 configs × 3 folds agrupados)
-       ├── subamostra de 300 mil → comparação de candidatos (5 folds agrupados, treino e validação)
-       └── vencedor retreinado no treino completo → avaliado no TESTE
+       ├── subamostra de 300 mil → VALIDAÇÃO por CV agrupada:
+       │     ├── busca de hiperparâmetros — HGB (15 configs) e Logística (5 valores de C), 3 folds
+       │     └── comparação dos 4 candidatos, 5 folds (treino × validação, comparação pareada)
+       └── vencedor retreinado no treino completo → avaliado no TESTE (+ bootstrap por município)
  + predições out-of-fold em todos os alunos (5 folds agrupados) → ranking e backtest de metas
  + modelo final com todos os alunos de 2024 → projeção 2025 → comparada com o Brasil 2025 oficial
 ```
+
+**Treino, validação e teste**, como pede o enunciado:
+
+- **Treino**: 80% dos municípios.
+- **Validação**: os folds da validação cruzada agrupada dentro do treino, que
+  servem para escolher hiperparâmetros e modelo. O HGB usa ainda uma fração
+  interna para o early stopping.
+- **Teste**: os outros 20% dos municípios, que não participam de nenhuma
+  escolha.
+
+Depois da escolha, o teste foi usado mais uma vez, numa checagem de
+sensibilidade documentada (D21) que não alterou o modelo.
 
 - **Validação cruzada agrupada por município** (`StratifiedGroupKFold`) em
   todas as etapas. Nenhum município aparece no treino e na validação ao
@@ -199,13 +217,20 @@ treino de cada fold:
   acontecer. Medimos o efeito: um split aleatório por aluno daria ROC-AUC
   0,6513, contra 0,6480 do agrupado. O otimismo é pequeno porque, sem UF,
   há pouca informação específica do município para o modelo "decorar".
-- **Replicabilidade**: `random_state` fixo em todo split, subamostra e
-  modelo. O treino completo roda com um comando
+- **Replicabilidade verificada**: `random_state` fixo em todo split,
+  subamostra e modelo. O treino completo roda com um comando
   (`python -m src.modeling.treinar`), e os notebooks leem os artefatos em
-  vez de re-treinar.
-- **Estratégias contra overfitting**:
-  - busca de hiperparâmetros com regularização (L2, mínimo de amostras por
-    folha, número de folhas, profundidade);
+  vez de re-treinar. Teste feito: clone limpo do repositório → pipeline
+  (52 s) → suíte de testes → treino completo, com **números idênticos** aos
+  publicados (escolha do modelo, métricas de teste, OOF, backtest,
+  projeções e clusters). A suíte de testes roda a cada push no GitHub
+  Actions ([`.github/workflows/testes.yml`](.github/workflows/testes.yml)).
+- **Estratégias de otimização e contra overfitting**:
+  - busca de hiperparâmetros em validação cruzada agrupada para os dois
+    modelos com hiperparâmetros relevantes: `RandomizedSearchCV` no HGB
+    (taxa de aprendizado, número de folhas, mínimo de amostras por folha, L2,
+    profundidade) e `GridSearchCV` na força da regularização L2 da
+    logística (C de 0,001 a 10 → **C = 0,01**);
   - early stopping no HGB;
   - gap entre treino e validação reportado para cada candidato;
   - regra de 1 desvio padrão para escolher o modelo (D13–D14).
@@ -221,18 +246,46 @@ treino de cada fold:
 | Random Forest | 0,651 ± 0,015 | 0,687 | 0,036 | 11 s |
 | HistGradientBoosting (tunado) | 0,652 ± 0,017 | 0,685 | 0,033 | 16 s |
 
-Melhor configuração do HGB na busca: `learning_rate=0.03`,
-`max_leaf_nodes=31`, `min_samples_leaf=2000`, `l2_regularization=0.1`
-([`reports/tuning_hist_gradient_boosting.csv`](reports/tuning_hist_gradient_boosting.csv)).
+Melhores configurações:
+
+- **HGB**: `learning_rate=0.03`, `max_leaf_nodes=31`,
+  `min_samples_leaf=2000`, `l2_regularization=0.1`
+  ([`reports/tuning_hist_gradient_boosting.csv`](reports/tuning_hist_gradient_boosting.csv)).
+- **Logística**: `C=0.01`. Todos os valores de C ficam a menos de 0,0001 um
+  do outro: com 1,48 M alunos e 16 features não há regime de overfitting a
+  conter ([`reports/tuning_regressao_logistica.csv`](reports/tuning_regressao_logistica.csv)).
 
 **Escolhida: Regressão Logística.** Os três modelos ficam a 0,004 de
-ROC-AUC uns dos outros, uma diferença 4× menor que o desvio entre folds.
-Os modelos de árvore têm gap entre treino e validação 9× maior. Pela regra
-de 1 desvio padrão (D14), entre modelos estatisticamente empatados fica o
-mais simples. Ele também é o mais interpretável e o mais rápido de
-retreinar a cada nova divulgação do INEP. Que modelos não lineares não
-ganhem nada é, em si, um achado: com estas features, a relação com o alvo é
-essencialmente aditiva.
+ROC-AUC uns dos outros, uma diferença 4× menor que o desvio entre folds, e
+os modelos de árvore têm gap entre treino e validação 9× maior. Pela regra
+de 1 desvio padrão (D14), definida antes de olhar o teste, fica o mais
+simples. Ele também é o mais interpretável e o mais rápido de retreinar a
+cada nova divulgação do INEP.
+
+**Validação estatística da escolha (D21).** Como os candidatos foram
+avaliados nos *mesmos* folds, dá para compará-los fold a fold:
+
+| Diferença de ROC-AUC (mesmos folds) | Média | IC 95% | Folds em que o modelo complexo vence |
+|---|---|---|---|
+| HistGradientBoosting − Logística | +0,0040 | [+0,0019; +0,0061] | 5 de 5 |
+| Random Forest − Logística | +0,0033 | [+0,0009; +0,0057] | 5 de 5 |
+
+Os modelos de árvore são **consistentemente** um pouco melhores: a diferença
+é estatisticamente detectável, mas pequena. Para medir se ela muda alguma
+decisão, o HGB foi avaliado no mesmo teste numa checagem posterior
+([`reports/sensibilidade_modelo.json`](reports/sensibilidade_modelo.json)):
+
+| No teste | Logística | HGB |
+|---|---|---|
+| ROC-AUC | 0,628 | 0,634 |
+| Lift dos 20% de maior risco (alunos) | 1,452× | 1,454× |
+| Correlação taxa prevista × real (municípios) | 0,73 | 0,77 |
+
+Os dois priorizam os mesmos alunos (lift idêntico) e 84% dos mesmos
+municípios. O HGB ganha um pouco no agregado municipal. A escolha não foi
+revista, porque trocar de modelo depois de ver o teste invalidaria o teste.
+O HGB fica registrado como **modelo desafiante**: na próxima rodada, com os
+dados de 2025, os dois são comparados de novo fora do tempo.
 
 ![Comparação de modelos](images/04_comparacao_modelos.png)
 
@@ -245,7 +298,12 @@ essencialmente aditiva.
 | Brier score (menor é melhor) | **0,229** | 0,240 |
 | Acurácia | 0,630 | 0,598 |
 | Precisão da classe "em risco" | 0,573 | n/a |
-| Recall da classe "em risco" (limiar 0,5) | 0,312 | 0,000 |
+| Recall da classe "em risco" (limiar 0,5) | 0,311 | 0,000 |
+
+**Incerteza (D22).** Intervalo de confiança de 95% por bootstrap que
+reamostra **municípios inteiros** (alunos do mesmo município não são
+independentes): ROC-AUC **[0,594; 0,655]**; lift dos 20% de maior risco
+**[1,36×; 1,49×]**. Os dois intervalos ficam inteiros acima do acaso.
 
 **Generalização.** O ROC-AUC do teste (0,628) fica abaixo da validação
 cruzada (0,648). Isso não é overfitting:
@@ -310,33 +368,65 @@ cresce, como esperado: o modelo concentra o ganho no topo do ranking.
 
 ## 7. Interpretação dos Resultados
 
-Usamos dois métodos complementares sobre o conjunto de teste:
+Quatro métodos complementares:
 
-- **Importância por permutação**: a queda de ROC-AUC quando cada feature é
-  embaralhada. É agnóstica ao modelo e mede o impacto na métrica.
-- **SHAP** (`LinearExplainer`): direção e magnitude do efeito, aluno a
-  aluno.
+- **Coeficientes padronizados** (feature importance nativa do modelo
+  linear): sinal e intensidade do efeito de cada feature.
+- **Importância por permutação** (no teste): a queda de ROC-AUC quando cada
+  feature é embaralhada. É agnóstica ao modelo e mede o impacto na métrica.
+- **SHAP** (`LinearExplainer`, no teste): direção e magnitude do efeito,
+  aluno a aluno.
+- **Ablação por grupo** (validação cruzada agrupada): retreina o modelo sem
+  cada grupo de fatores e só com ele. É robusta a features correlacionadas,
+  que a permutação de uma feature isolada subestima.
 
 <p>
-<img src="images/09_importancia_permutacao.png" width="49%">
-<img src="images/10_shap_summary.png" width="49%">
+<img src="images/18_coeficientes_logistica.png" width="32%">
+<img src="images/09_importancia_permutacao.png" width="32%">
+<img src="images/10_shap_summary.png" width="32%">
 </p>
 
-| # | Feature | Queda de ROC-AUC (permutação) | Leitura |
+| # | Feature | Queda de ROC-AUC (permutação) | Coeficiente padronizado | Leitura |
+|---|---|---|---|---|
+| 1 | `taxa_alfabetizacao_ant` | 0,0711 | +0,39 | Taxa de alfabetização do município no ano anterior, de longe a mais importante |
+| 2 | `prof_media_ant` | 0,0346 | +0,32 | Proficiência média do município no ano anterior |
+| 3 | `participacao_ant` | 0,0045 | +0,11 | Participação na avaliação: municípios mobilizados para a prova vão melhor |
+| 4 | `idhm_educacao` | 0,0044 | +0,07 | O componente do IDHM que mais pesa |
+| 5 | `meta_ano` | 0,0024 | −0,18 | Negativo *dado* o resultado passado: mesma base, meta mais alta = mais distância a percorrer |
+
+Um coeficiente que chama atenção é o da **rede estadual (+0,33)**. Com o
+contexto municipal fixo, alunos da rede estadual têm chance maior que os da
+municipal. Mas é justamente onde o modelo erra mais (superestima a rede
+estadual, ver abaixo).
+
+**Ablação: quais fatores mais impactam**
+([`reports/ablacao_grupos_features.csv`](reports/ablacao_grupos_features.csv)):
+
+| Grupo de fatores | Features | ROC-AUC só com o grupo | Queda de ROC-AUC ao remover o grupo |
 |---|---|---|---|
-| 1 | `taxa_alfabetizacao_ant` | 0,072 | Taxa de alfabetização do município no ano anterior, de longe a mais importante |
-| 2 | `prof_media_ant` | 0,035 | Proficiência média do município no ano anterior |
-| 3 | `participacao_ant` | 0,005 | Participação na avaliação: municípios mobilizados para a prova vão melhor |
-| 4 | `idhm_educacao` | 0,004 | O componente do IDHM que mais pesa |
-| 5 | `meta_ano` | 0,003 | Meta do ano, que reflete a trajetória pactuada |
+| **Histórico educacional do município** (ano anterior) | 6 | **0,644** | **0,0077** |
+| Meta e esforço para atingi-la | 2 | 0,628 | 0,0001 |
+| IDHM (socioeconômico) | 3 | 0,539 | 0,0002 |
+| Território e porte do município | 3 | 0,535 | 0,0000 |
+| Escola e rede | 2 | 0,508 | 0,0028 |
+| *Todas as 16 features* | 16 | *0,648* | |
+
+O histórico educacional do ano anterior, **sozinho**, entrega 0,644 dos
+0,648 do modelo completo. O IDHM sozinho fica em 0,539. A meta chega a
+0,628 sozinha porque é calculada a partir do histórico, então carrega a
+mesma informação (por isso removê-la quase não custa nada). Escola e rede
+quase nada sozinhas, mas somam ao histórico: rede estadual e porte da
+escola diferenciam alunos *dentro* do mesmo município.
+
+![Ablação](images/19_ablacao_grupos.png)
 
 **Teste das hipóteses**
 
 | Hipótese | Resultado | Evidência |
 |---|---|---|
-| **H1** Histórico educacional é o fator mais associado | ✅ Confirmada | As duas features mais importantes são resultado e proficiência do ano anterior |
-| **H2** IDHM pesa menos que o histórico educacional | ✅ Confirmada | Importância somada: históricos educacionais 0,116, IDHM 0,005 (23×) |
-| **H3** Mais esforço para a meta, menor chance | ⚠️ Na direção, fraca | Coeficiente negativo (−0,06), mas a correlação simples de −0,20 é explicada sobretudo pelo resultado passado |
+| **H1** Histórico educacional é o fator mais associado | ✅ Confirmada | As duas features mais importantes são resultado e proficiência do ano anterior; sozinho, o grupo entrega ROC-AUC de 0,644 (de 0,648) |
+| **H2** IDHM pesa menos que o histórico educacional | ✅ Confirmada | Permutação somada: históricos 0,114, IDHM 0,005 (22×); ablação: IDHM sozinho 0,539 contra 0,644 do histórico |
+| **H3** Mais esforço para a meta, menor chance | ⚠️ Na direção, fraca | Coeficiente negativo (−0,05), mas a correlação simples de −0,20 é explicada sobretudo pelo resultado passado |
 | **H4** Mais útil para priorizar que para prever um aluno | ✅ Confirmada | ROC-AUC individual de 0,63 contra correlação de 0,74 no agregado municipal ([§8.2](#82-alerta-de-metas-backtest-2024)) |
 | **H5** Alfabetização alta com contexto desfavorável | ✅ Confirmada | O perfil de maior alfabetização tem IDHM menor que o intermediário ([§8.4](#84-municípios-e-regiões-com-padrões-semelhantes)) |
 
@@ -351,9 +441,11 @@ IDHM traria, e mais.
   `prof_p25_ant` tem sinal SHAP negativo *dado* `prof_media_ant`. Esses
   sinais parciais não devem ser lidos isoladamente.
 - `mun_n_alunos_ant`, `idhm_renda` e `capital_uf` têm importância por
-  permutação levemente negativa no teste. Não foram removidas, porque isso
-  seria escolher features olhando o teste. Ficam como candidatas a seleção
-  por validação cruzada ([§11](#11-possíveis-evoluções-futuras)).
+  permutação levemente negativa no teste. A ablação em validação cruzada (sem
+  olhar o teste) confirma: o grupo "território e porte" não acrescenta nada
+  (perda 0,0000). Foi mantido nesta versão para não mudar o modelo depois
+  da avaliação; é o primeiro candidato a remoção na próxima
+  ([§11](#11-possíveis-evoluções-futuras)).
 
 **Onde o modelo erra mais** ([`reports/desempenho_por_nome_regiao.csv`](reports/desempenho_por_nome_regiao.csv)):
 
@@ -363,10 +455,10 @@ IDHM traria, e mais.
 | Sul | 55.031 | 63,1% | 66,3% | 0,614 |
 | Centro-Oeste | 24.057 | 67,6% | 63,6% | 0,607 |
 | Norte | 28.237 | 51,8% | 51,0% | 0,606 |
-| Sudeste | 154.743 | 62,9% | 57,4% | 0,582 |
+| Sudeste | 154.743 | 62,9% | 57,5% | 0,582 |
 
 Sem UF entre as features, ficam vieses regionais residuais: o modelo
-subestima o Sudeste em 5,5 p.p. e superestima o Sul em 3,2 p.p. Na rede
+subestima o Sudeste em 5,4 p.p. e superestima o Sul em 3,2 p.p. Na rede
 estadual ele também superestima (64,3% previsto contra 60,8% real) e separa
 pior (ROC-AUC 0,569 contra 0,632 na rede municipal). É o custo, documentado,
 de não usar uma variável que não transfere para o ano seguinte (D8).
@@ -416,9 +508,9 @@ municipais), predição out-of-fold e só dados de 2023 como contexto.
 |---|---|
 | Municípios avaliados | 4.677 |
 | Ficaram abaixo da meta (real) | 2.169 (46%) |
-| Alertados pelo modelo | 2.169 |
+| Alertados pelo modelo | 2.171 |
 | **Precisão do alerta** (alertados que de fato ficaram abaixo) | **61,1%** |
-| **Recall do alerta** (dos que ficaram abaixo, quantos foram alertados) | **61,1%** |
+| **Recall do alerta** (dos que ficaram abaixo, quantos foram alertados) | **61,2%** |
 | Acurácia | 64,0% (contra 54% de "ninguém fica abaixo") |
 | Correlação entre taxa prevista e real | 0,742 |
 | Erro absoluto médio | 9,7 p.p. |
@@ -474,6 +566,13 @@ Os perfis vêm de um KMeans sobre o **perfil observado** do município, não
 sobre a saída do modelo (D19): taxa, proficiência, desigualdade interna,
 participação, IDHM Educação e IDHM Renda. O k foi escolhido pelo silhouette
 (k = 3, silhouette de 0,27).
+
+Um silhouette de 0,27 indica **separação moderada**: os municípios formam um
+contínuo, e os perfis devem ser lidos como tendências, não como fronteiras
+rígidas. O silhouette cai monotonicamente de k = 3 (0,27) a k = 7 (0,21), então
+dividir mais não revela grupos mais nítidos. Para uso operacional, o ranking
+de risco (§8.1) é o instrumento de priorização; os perfis servem para
+encontrar pares comparáveis.
 
 | Perfil | Municípios | Taxa de alfabetização | Proficiência média | Desigualdade interna (DP) | Participação | IDHM Educação | IDHM Renda |
 |---|---|---|---|---|---|---|---|
@@ -570,11 +669,15 @@ rotular um aluno, porque o erro individual é alto.
 
 ## 11. Possíveis Evoluções Futuras
 
+As duas primeiras estão planejadas na
+[issue #6](https://github.com/Fe-Biaggio/TechChallenge_3/issues/6).
+
 - **Revalidação temporal municipal.** Quando os microdados de 2025 forem
   publicados, medir o erro da projeção município a município e treinar com
   dois pares de anos.
-- **Seleção de features por validação cruzada** para as três features com
-  permutação negativa no teste (§7).
+- **Remover o grupo "território e porte"**, que a ablação mostrou não
+  acrescentar nada (§7), e **reavaliar o HGB como modelo desafiante** fora
+  do tempo, com os dados de 2025 (D21).
 - **Censo Escolar** (infraestrutura, formação docente, turno, tamanho de
   turma): informação no nível da escola, que hoje só entra como porte.
 - **CadÚnico / Bolsa Família**: vulnerabilidade no nível da família, que o
@@ -596,34 +699,39 @@ TechChallenge_3/
 │   ├── preprocessing/dataset.py           # Dataset nível-aluno sem vazamento (regra D1)
 │   ├── modeling/
 │   │   ├── pipeline.py                    # Pipelines sklearn: pré-processamento + modelo (4 candidatos)
-│   │   └── treinar.py                     # Orquestrador: split, busca, comparação, teste, OOF, projeção
+│   │   ├── treinar.py                     # Orquestrador: split, busca, comparação, teste, OOF, projeção
+│   │   ├── prever.py                      # Inferência com o modelo salvo (pontuar um ano novo sem re-treinar)
+│   │   └── sensibilidade_modelo.py        # Checagem posterior: modelo desafiante (HGB) no mesmo teste (D21)
 │   ├── evaluation/
-│   │   ├── metricas.py                    # Métricas, priorização, desempenho por subgrupo
-│   │   ├── interpretabilidade.py          # Permutação + SHAP
+│   │   ├── metricas.py                    # Métricas, priorização, subgrupos, bootstrap, comparação pareada
+│   │   ├── interpretabilidade.py          # Permutação, SHAP e ablação por grupo de fatores
 │   │   └── aplicacao_estrategica.py       # Ranking, backtest/projeção de metas, validação temporal, clusters
-│   └── visualization/graficos.py          # 17 gráficos em images/
+│   └── visualization/graficos.py          # 19 gráficos em images/
 ├── notebooks/
 │   ├── 01..03_*.ipynb                     # Fase 2 — exploração, pipeline, Gold
 │   ├── 04_eda_modelagem.ipynb             # EDA + hipóteses H1–H5
 │   ├── 05_resultados_modelo.ipynb         # Validação, métricas, interpretação, teste de hipóteses
 │   ├── 06_aplicacao_estrategica.ipynb     # Perguntas de negócio: risco, metas, validação temporal, clusters
 │   └── _gerar_notebooks_fase3.py          # Gera 04–06 (leem artefatos, não re-treinam)
-├── images/                                # Gráficos gerados pelo treino (01–17)
+├── images/                                # Gráficos gerados pelo treino (01–19)
 ├── models/modelo_final.joblib             # Pipeline final (pré-processamento + modelo)
 ├── reports/
 │   ├── metricas_modelo.json               # Todas as métricas do treino
 │   ├── aplicacao_estrategica.json         # Backtest, validação temporal, projeções e clusters
 │   ├── *.csv                              # Comparação, tuning, priorização, importância, ranking, projeções, clusters
-│   └── presentation/                      # Decks (Fase 2 e Fase 3) e seus geradores
+│   └── presentation/                      # Deck da Fase 3 (+ gerador); deck e vídeo da Fase 2
 ├── docs/
-│   ├── decisoes_analiticas.md             # D1–D20: o porquê de cada decisão, com evidência
+│   ├── decisoes_analiticas.md             # D1–D22: o porquê de cada decisão, com evidência
+│   ├── model_card.md                      # Ficha do modelo: uso pretendido, dados, desempenho, limites, riscos
 │   ├── roteiro_video_fase3.md             # Roteiro do vídeo executivo (≤ 5 min)
 │   ├── fase2_pipeline.md                  # Documentação da pipeline de dados (Fase 2)
+│   ├── fase2_consultas_bigquery.md        # Consultas SQL de referência (Base dos Dados)
 │   ├── arquitetura/                       # Diagramas da pipeline
 │   └── [IAST] - Tech Challenge - Fase 3.pdf
 ├── pipeline/, quality/                    # Fase 2 — Bronze → Silver → Gold com gate de qualidade
-├── data/                                  # raw/ versionado; bronze/silver/gold/modelagem gerados
+├── data/                                  # raw/ versionado; bronze/silver/gold/modelagem gerados (ver data/README.md)
 ├── tests/                                 # pytest — pipeline (Fase 2) + ML (vazamento, modelos, aplicação)
+├── .github/                               # CI (GitHub Actions roda os testes a cada push/PR) + template de PR
 ├── requirements.txt
 └── README.md
 ```
@@ -639,7 +747,7 @@ python pipeline/executar_pipeline.py
 # 2. Testes: vazamento, redundância, pré-processamento, métricas, aplicação estratégica
 python -m pytest tests/ -q
 
-# 3. Treino completo + aplicação estratégica (~15 min nesta máquina)
+# 3. Treino completo + aplicação estratégica (~18 min nesta máquina)
 python -m src.modeling.treinar
 #    só refazer ranking/metas/clusters a partir das predições salvas (~1 min):
 python -m src.modeling.treinar --so-estrategia
@@ -647,7 +755,10 @@ python -m src.modeling.treinar --so-estrategia
 # 4. Notebooks (leem os artefatos, não re-treinam)
 jupyter lab notebooks/
 
-# 5. Deck da Fase 3 (números lidos dos artefatos)
+# 5. Inferência com o modelo salvo (ex.: projeção 2025 com o nível ajustado ao Brasil oficial)
+python -m src.modeling.prever --ano-alvo 2025 --taxa-nacional 66.0
+
+# 6. Deck da Fase 3 + roteiro do vídeo (números lidos dos artefatos)
 python reports/presentation/gerar_apresentacao_fase3.py
 ```
 
@@ -674,12 +785,20 @@ microdados. Com credenciais GCP, a pipeline lê direto do BigQuery
 
 ## Apresentação e Vídeo Executivo
 
-- **Deck**: [`reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx`](reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx),
-  com 10 slides e todos os números lidos dos artefatos do treino.
-- **Roteiro do vídeo** (≤ 5 min; cobre problema educacional, principais
-  insights, valor estratégico e apoio a políticas públicas):
-  [`docs/roteiro_video_fase3.md`](docs/roteiro_video_fase3.md).
-- **Vídeo**: *a gravar a partir do roteiro e do deck acima.*
+- **Deck**: [`reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx`](reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx).
+  São 10 slides na identidade visual do deck da Fase 2, com gráficos nativos
+  (editáveis no PowerPoint), e a **fala de cada slide nas notas do
+  apresentador**.
+- **Roteiro do vídeo**: [`docs/roteiro_video_fase3.md`](docs/roteiro_video_fase3.md).
+  Traz a fala exata de cada slide, com tempo de início e duração (~4 min 34 s,
+  dentro do limite de 5 min). Cobre os quatro pontos pedidos: problema
+  educacional, principais insights, valor estratégico e apoio a políticas
+  públicas. Inclui dicas de gravação e respostas para perguntas prováveis.
+- **Como são gerados**: deck e roteiro saem do mesmo script
+  (`python reports/presentation/gerar_apresentacao_fase3.py`). Todos os
+  números são lidos dos artefatos do treino, então slide, fala e README não
+  divergem.
+- **Vídeo**: *a gravar a partir do roteiro e do deck acima* ([issue #5](https://github.com/Fe-Biaggio/TechChallenge_3/issues/5)).
 
 ## Organização do Trabalho (Git)
 
@@ -691,6 +810,7 @@ push direto na `main` depois da base inicial:
 | #1 | `fase-3/atualiza-branding` | Atualiza a identidade do projeto de Fase 2 para Fase 3 e adiciona o enunciado |
 | #2 | `feature/estrutura-ml-fase3` | Primeira versão do modelo preditivo (estrutura `src/`, pipeline sklearn, SHAP) |
 | #3 | `feature/melhorias-modelo-fase3` | Revisão: validação agrupada por município, correção de vazamentos (UF, redundâncias), 4 candidatos com busca de hiperparâmetros, priorização, aplicação estratégica, validação temporal, notebooks 04–06, decisões D1–D20 |
+| #4 | `feature/validacao-estatistica-apresentacao` | Validação estatística (tunagem da logística, comparação pareada, bootstrap, sensibilidade), ablação por grupo, coeficientes, CI no GitHub Actions, script de inferência, model card, apresentação final e roteiro do vídeo (D21–D22) |
 
 As decisões analíticas ficam versionadas em
 [`docs/decisoes_analiticas.md`](docs/decisoes_analiticas.md), cada uma com

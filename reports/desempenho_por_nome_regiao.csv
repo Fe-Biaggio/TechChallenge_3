@@ -1,6 +1,6 @@
 nome_regiao,n_alunos,taxa_real,taxa_prevista,roc_auc
-Sudeste,154743,62.9,57.4,0.5822
-Norte,28237,51.8,51.0,0.6057
+Sudeste,154743,62.9,57.5,0.5822
+Norte,28237,51.8,51.0,0.6058
 Centro-Oeste,24057,67.6,63.6,0.6073
 Sul,55031,63.1,66.3,0.6141
-Nordeste,108262,54.0,55.1,0.6675
+Nordeste,108262,54.0,55.1,0.6676

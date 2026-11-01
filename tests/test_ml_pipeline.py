@@ -337,3 +337,64 @@ def test_validacao_temporal_reporta_erro_quando_ha_resultado_oficial():
     assert res["erro_projecao_2025_pp"] == -6.0
     sem_2025 = estrategia.validacao_temporal_nacional(oof, proj, 2024, 2025, {2024: 50.0})
     assert "erro_projecao_2025_pp" not in sem_2025
+
+
+# ─── Validação estatística e ablação ─────────────────────────────────────────
+
+def test_bootstrap_agrupado_contem_o_valor_pontual():
+    from sklearn.metrics import roc_auc_score
+    from src.evaluation.metricas import bootstrap_por_grupo
+    rng = np.random.default_rng(5)
+    n = 4000
+    grupos = rng.integers(0, 80, n)
+    proba = rng.uniform(size=n)
+    y = (rng.uniform(size=n) < proba).astype(int)
+    res = bootstrap_por_grupo(y, proba, grupos, n_boot=100)
+    baixo, alto = res["roc_auc_ic95"]
+    assert baixo < roc_auc_score(y, proba) < alto
+    assert res["lift_top20_ic95"][0] > 1.0  # o modelo sintético tem sinal real
+
+
+def test_comparacao_pareada_conta_folds_e_sinal():
+    from src.evaluation.metricas import comparacao_pareada
+    res = comparacao_pareada([0.66, 0.65, 0.67, 0.64, 0.66], [0.65, 0.65, 0.66, 0.64, 0.65])
+    assert res["folds_a_melhor"] == 3
+    assert res["diferenca_media"] == pytest.approx(0.006)
+    assert res["ic95_aprox"][0] < res["diferenca_media"] < res["ic95_aprox"][1]
+
+
+def test_logistica_aceita_hiperparametro_de_regularizacao():
+    pipe = pipeline_logistica(C=0.01)
+    assert pipe.named_steps["classificador"].C == 0.01
+
+
+def test_grupos_da_ablacao_cobrem_todas_as_features_sem_repetir():
+    from src.evaluation.interpretabilidade import GRUPOS_FEATURES
+    todas = [c for cols in GRUPOS_FEATURES.values() for c in cols]
+    assert sorted(todas) == sorted(TODAS_FEATURES)
+
+
+def test_neutralizar_remove_a_informacao_sem_mudar_o_formato():
+    from src.evaluation.interpretabilidade import neutralizar
+    X = pd.DataFrame({"a": [1.0, 2.0, np.nan], "rede_label": ["Municipal", "Estadual", None]})
+    Xn = neutralizar(X, ["a", "rede_label"])
+    assert list(Xn.columns) == ["a", "rede_label"] and len(Xn) == 3
+    assert Xn["a"].nunique() == 1 and Xn["rede_label"].nunique() == 1
+    assert X["a"].isna().sum() == 1  # original intacto
+
+
+def test_ablacao_detecta_o_grupo_que_carrega_o_sinal():
+    from sklearn.model_selection import StratifiedGroupKFold
+    from src.evaluation.interpretabilidade import ablacao_por_grupo
+    rng = np.random.default_rng(11)
+    n = 3000
+    X = pd.DataFrame({"forte": rng.normal(size=n), "ruido": rng.normal(size=n)})
+    y = (X["forte"] + rng.normal(scale=0.5, size=n) > 0).astype(int)
+    grupos = rng.integers(0, 60, n)
+    from sklearn.linear_model import LogisticRegression
+    res = ablacao_por_grupo(lambda: LogisticRegression(), X, y, grupos,
+                            StratifiedGroupKFold(3, shuffle=True, random_state=0),
+                            grupos_features={"sinal": ["forte"], "ruído": ["ruido"]})
+    assert res.iloc[0]["grupo"] == "sinal"
+    assert res.iloc[0]["perda_ao_remover"] > 0.3
+    assert res.attrs["roc_auc_completo"] > 0.85

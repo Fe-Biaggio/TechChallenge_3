@@ -13,7 +13,6 @@ import random
 import time
 import threading
 from datetime import datetime
-from queue import Queue
 from typing import Optional
 
 try:
