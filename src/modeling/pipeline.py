@@ -84,10 +84,16 @@ def pipeline_baseline() -> Pipeline:
     ])
 
 
-def pipeline_logistica() -> Pipeline:
+def pipeline_logistica(**params) -> Pipeline:
+    """
+    Regularização L2; a força (C) é escolhida por busca em validação cruzada
+    agrupada (ESPACO_BUSCA_LOGISTICA). C menor = coeficientes mais encolhidos.
+    """
+    base = dict(C=1.0, max_iter=2000, random_state=SEED)
+    base.update(params)
     return Pipeline([
         ("preprocessador", preprocessador_linear()),
-        ("classificador", LogisticRegression(max_iter=2000, random_state=SEED)),
+        ("classificador", LogisticRegression(**base)),
     ])
 
 
@@ -128,6 +134,11 @@ ESPACO_BUSCA_HGB = {
     "classificador__min_samples_leaf": [20, 100, 500, 2000],
     "classificador__l2_regularization": [0.0, 0.1, 1.0, 10.0],
     "classificador__max_depth": [None, 6, 10],
+}
+
+# Busca da Regressão Logística (GridSearchCV — ver src/modeling/treinar.py)
+ESPACO_BUSCA_LOGISTICA = {
+    "classificador__C": [0.001, 0.01, 0.1, 1.0, 10.0],
 }
 
 CANDIDATOS = {

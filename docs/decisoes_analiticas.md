@@ -281,3 +281,56 @@ um único par de anos e não tem como antecipar uma aceleração nacional
 número ajustado — esconderia que o modelo, sozinho, erra o nível quando a
 tendência nacional muda. Esse erro é a principal limitação para uso em
 projeção e precisa estar visível.
+
+### D21 — Validação estatística da escolha e modelo desafiante
+
+Três verificações adicionadas depois da escolha, para medir a incerteza e o
+custo de ter escolhido o modelo mais simples:
+
+**Regularização da logística otimizada.** Busca em validação cruzada agrupada
+sobre `C` ∈ {0,001; 0,01; 0,1; 1; 10}: escolhido `C = 0,01`. Todas as opções
+ficam dentro de 0,0001 de ROC-AUC — com 1,48 M alunos e 16 features, o
+modelo não está em regime de overfitting (gap treino−validação de 0,004).
+
+**Comparação pareada (mesmos folds).** Random Forest e HistGradientBoosting
+superam a logística nos 5 de 5 folds, por +0,003 e +0,004 de ROC-AUC
+(intervalos de 95% excluem zero). A diferença é estatisticamente detectável,
+mas pequena — 4× menor que a variação entre grupos de municípios — e a
+regra de 1 desvio padrão (D14), definida antes, mantém a logística.
+
+**Sensibilidade no teste** (`python -m src.modeling.sensibilidade_modelo`,
+`reports/sensibilidade_modelo.json`): o HGB treinado no mesmo treino, no
+mesmo teste.
+
+| | Regressão Logística | HistGradientBoosting |
+|---|---|---|
+| ROC-AUC | 0,628 | 0,634 |
+| Brier | 0,229 | 0,228 |
+| Lift no top 20% (alunos) | 1,452× | 1,454× |
+| Correlação taxa prevista × real (municípios) | 0,73 | 0,77 |
+| Erro médio municipal | 9,6 p.p. | 8,9 p.p. |
+
+Os dois priorizam praticamente os mesmos alunos (lift idêntico) e 84% dos
+mesmos municípios no top 20% (correlação de 0,93 entre as taxas municipais
+previstas pelos dois).
+
+*Decisão*: manter a Regressão Logística como modelo principal. Trocar de
+modelo depois de ver o teste invalidaria o teste como medida honesta de
+generalização; e, para política pública, um critério explicável por
+coeficientes ("cada ponto de taxa de alfabetização no ano anterior aumenta a
+chance em X") pesa mais que 0,04 de correlação no agregado. O HGB fica
+registrado como **modelo desafiante**: na próxima rodada com dados novos
+(2025), os dois são comparados de novo em validação temporal — se o HGB
+mantiver a vantagem municipal fora do tempo, passa a ser usado para o
+ranking de municípios.
+
+*Alternativa descartada*: escolher pelo maior ROC-AUC médio sem considerar a
+variação — o "vencedor" mudaria a cada sorteio de folds.
+
+### D22 — Incerteza do resultado por bootstrap agrupado
+
+O ROC-AUC do teste vem com intervalo de 95% calculado por bootstrap que
+reamostra **municípios inteiros** (300 reamostragens): **[0,594; 0,655]**; o
+lift do top 20%: **[1,36×; 1,49×]**. Reamostrar alunos um a um daria um
+intervalo estreito demais, porque alunos do mesmo município compartilham o
+contexto. Os dois intervalos ficam inteiros acima do acaso (0,5 e 1×).

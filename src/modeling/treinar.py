@@ -30,6 +30,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import (
+    GridSearchCV,
     RandomizedSearchCV,
     StratifiedGroupKFold,
     cross_val_predict,
@@ -43,6 +44,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from src.evaluation import aplicacao_estrategica as estrategia  # noqa: E402
 from src.evaluation.interpretabilidade import (  # noqa: E402
+    ablacao_por_grupo,
     calcular_shap_values,
     importancia_permutacao,
     resumo_shap,
@@ -50,10 +52,20 @@ from src.evaluation.interpretabilidade import (  # noqa: E402
 from src.evaluation.metricas import (  # noqa: E402
     analise_limiar,
     analise_priorizacao,
+    bootstrap_por_grupo,
     calcular_metricas,
+    coeficientes_regressao_logistica,
+    comparacao_pareada,
     desempenho_por_subgrupo,
 )
-from src.modeling.pipeline import CANDIDATOS, ESPACO_BUSCA_HGB, SEED, pipeline_hist_gradient_boosting  # noqa: E402
+from src.modeling.pipeline import (  # noqa: E402
+    CANDIDATOS,
+    ESPACO_BUSCA_HGB,
+    ESPACO_BUSCA_LOGISTICA,
+    SEED,
+    pipeline_hist_gradient_boosting,
+    pipeline_logistica,
+)
 from src.preprocessing.dataset import (  # noqa: E402
     ANO_TREINO,
     COLUNA_ALVO,
@@ -85,8 +97,9 @@ def _cv_agrupado(n_splits: int) -> StratifiedGroupKFold:
     return StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
 
 
-def _construir(nome: str, params_hgb: dict):
-    return CANDIDATOS[nome](**params_hgb) if nome == "hist_gradient_boosting" else CANDIDATOS[nome]()
+def _construir(nome: str, params: dict):
+    """Pipeline novo do candidato `nome`, com os hiperparâmetros escolhidos na busca (se houver)."""
+    return CANDIDATOS[nome](**params.get(nome, {}))
 
 
 # Do mais simples para o mais complexo — usado pela regra de 1 desvio padrão
@@ -150,12 +163,26 @@ def treinar_e_avaliar() -> dict:
     log(f"\n[busca] {N_ITER_BUSCA} configurações × 3 folds em {time.time() - t:.0f}s — "
         f"melhor ROC-AUC {busca.best_score_:.4f}: {params_hgb}")
 
+    # 2a'. Busca da regularização da Regressão Logística (mesmo desenho de CV)
+    t = time.time()
+    busca_lr = GridSearchCV(pipeline_logistica(), ESPACO_BUSCA_LOGISTICA, scoring="roc_auc",
+                            cv=_cv_agrupado(3), n_jobs=1, refit=False)
+    busca_lr.fit(X_sub, y_sub, groups=g_sub)
+    params_lr = {k.replace("classificador__", ""): v for k, v in busca_lr.best_params_.items()}
+    (pd.DataFrame(busca_lr.cv_results_).sort_values("rank_test_score")
+     [["rank_test_score", "mean_test_score", "std_test_score", "mean_fit_time", "params"]]
+     .to_csv(REPORTS_DIR / "tuning_regressao_logistica.csv", index=False))
+    log(f"[busca] regressão logística: {len(busca_lr.cv_results_['params'])} valores de C × 3 folds em "
+        f"{time.time() - t:.0f}s — melhor ROC-AUC {busca_lr.best_score_:.4f}: {params_lr}")
+    params = {"hist_gradient_boosting": params_hgb, "regressao_logistica": params_lr}
+
     # 2b. Comparação entre candidatos (mesma CV agrupada, mesma subamostra)
-    linhas = []
+    linhas, scores_por_fold = [], {}
     for nome in CANDIDATOS:
         t = time.time()
-        res = cross_validate(_construir(nome, params_hgb), X_sub, y_sub, groups=g_sub, cv=_cv_agrupado(5),
+        res = cross_validate(_construir(nome, params), X_sub, y_sub, groups=g_sub, cv=_cv_agrupado(5),
                              scoring="roc_auc", return_train_score=True, n_jobs=1)
+        scores_por_fold[nome] = res["test_score"]
         linhas.append({
             "modelo": nome,
             "cv_roc_auc_medio": round(float(res["test_score"].mean()), 4),
@@ -172,15 +199,23 @@ def treinar_e_avaliar() -> dict:
     melhor, justificativa = escolher_modelo(comparacao)
     log(f"\n>>> Modelo escolhido: {melhor} — {justificativa}")
 
+    # Comparação pareada (mesmos folds): cada outro candidato real menos o escolhido
+    pd.DataFrame(scores_por_fold).rename_axis("fold").to_csv(REPORTS_DIR / "comparacao_modelos_por_fold.csv")
+    pareada = {
+        f"{outro}_menos_{melhor}": comparacao_pareada(scores_por_fold[outro], scores_por_fold[melhor])
+        for outro in ORDEM_COMPLEXIDADE if outro != melhor and outro in scores_por_fold
+    }
+    log(f"[cv] comparação pareada fold a fold: {pareada}")
+
     # 3. Retreino no treino completo, avaliação única no teste
     t = time.time()
-    modelo = _construir(melhor, params_hgb).fit(X_tr, y_tr)
+    modelo = _construir(melhor, params).fit(X_tr, y_tr)
     log(f"[final] treinado em {len(X_tr):,} alunos em {time.time() - t:.0f}s")
     proba_te = modelo.predict_proba(X_te)[:, 1]
     pred_te = (proba_te >= 0.5).astype(int)
     metricas_teste = calcular_metricas(y_te, pred_te, proba_te)
 
-    baseline = _construir("baseline_prevalencia", params_hgb).fit(X_tr, y_tr)
+    baseline = _construir("baseline_prevalencia", params).fit(X_tr, y_tr)
     proba_base = baseline.predict_proba(X_te)[:, 1]
     metricas_baseline = calcular_metricas(y_te, baseline.predict(X_te), proba_base)
 
@@ -203,10 +238,15 @@ def treinar_e_avaliar() -> dict:
     log(f"[priorização] top 20% de maior risco: {top20['taxa_risco_no_grupo']:.1%} de fato em risco "
         f"(média {1 - y_te.mean():.1%}, lift {top20['lift']}) | cobre {top20['recall_risco']:.1%} dos alunos em risco")
 
+    # Incerteza do resultado no teste: bootstrap reamostrando municípios inteiros
+    t = time.time()
+    bootstrap = bootstrap_por_grupo(y_te, proba_te, grupos.iloc[idx_teste])
+    log(f"[bootstrap] {bootstrap} ({time.time() - t:.0f}s)")
+
     # Quanto um split aleatório por aluno superestimaria o desempenho (mesmo modelo, mesma subamostra)
     from sklearn.model_selection import StratifiedKFold
     t = time.time()
-    auc_aleatorio = cross_validate(_construir(melhor, params_hgb), X_sub, y_sub, scoring="roc_auc",
+    auc_aleatorio = cross_validate(_construir(melhor, params), X_sub, y_sub, scoring="roc_auc",
                                    cv=StratifiedKFold(5, shuffle=True, random_state=SEED))["test_score"]
     validacao_comparada = {
         "split_aleatorio_por_aluno": round(float(auc_aleatorio.mean()), 4),
@@ -233,6 +273,20 @@ def treinar_e_avaliar() -> dict:
     resumo_shap(shap_vals, nomes_shap).to_csv(REPORTS_DIR / "shap_importance.csv", index=False)
     log(f"[interpretabilidade] permutação + SHAP ({metodo_shap}) em {time.time() - t:.0f}s")
 
+    coeficientes = None
+    if melhor == "regressao_logistica":
+        coeficientes = coeficientes_regressao_logistica(modelo, top_n=100)
+        coeficientes["feature"] = coeficientes["feature"].str.split("__", n=1).str[-1]
+        coeficientes.to_csv(REPORTS_DIR / "coeficientes_regressao_logistica.csv", index=False)
+
+    # Ablação por grupo de fatores (retreina sem cada grupo / só com ele), mesma CV agrupada
+    t = time.time()
+    ablacao = ablacao_por_grupo(lambda: _construir(melhor, params), X_sub, y_sub, g_sub, _cv_agrupado(5))
+    ablacao.to_csv(REPORTS_DIR / "ablacao_grupos_features.csv", index=False)
+    log(f"[ablação] completo {ablacao.attrs['roc_auc_completo']} | "
+        f"{ablacao[['grupo', 'perda_ao_remover', 'roc_auc_so_o_grupo']].to_dict(orient='records')} "
+        f"({time.time() - t:.0f}s)")
+
     # Gráficos de EDA e avaliação
     graficos.distribuicao_alvo(df)
     graficos.taxa_por_regiao(df)
@@ -245,10 +299,13 @@ def treinar_e_avaliar() -> dict:
     graficos.importancia_permutacao(perm)
     graficos.shap_summary(shap_vals, X_shap, nomes_shap)
     graficos.desempenho_regiao(subgrupos["nome_regiao"])
+    if coeficientes is not None:
+        graficos.coeficientes(coeficientes)
+    graficos.ablacao(ablacao)
 
     # 4. Predições out-of-fold em todos os alunos
     t = time.time()
-    proba_oof = cross_val_predict(_construir(melhor, params_hgb), X, y, groups=grupos, cv=_cv_agrupado(5),
+    proba_oof = cross_val_predict(_construir(melhor, params), X, y, groups=grupos, cv=_cv_agrupado(5),
                                   method="predict_proba", n_jobs=1)[:, 1]
     colunas_oof = ["id_municipio", "id_aluno", "peso_aluno", "nome_municipio", "sigla_uf", "nome_regiao",
                    "rede_label", "meta_ano", COLUNA_ALVO]
@@ -260,7 +317,7 @@ def treinar_e_avaliar() -> dict:
 
     # 5. Modelo final com todos os alunos de 2024 + projeção
     t = time.time()
-    modelo_final = _construir(melhor, params_hgb).fit(X, y)
+    modelo_final = _construir(melhor, params).fit(X, y)
     joblib.dump(modelo_final, MODELS_DIR / "modelo_final.joblib")
     proj = montar_dataset_projecao(ANO_PROJECAO, ANO_TREINO)
     proj["proba_projecao"] = modelo_final.predict_proba(proj[TODAS_FEATURES])[:, 1]
@@ -276,6 +333,11 @@ def treinar_e_avaliar() -> dict:
         "priorizacao_teste": priorizacao.to_dict(orient="records"),
         "validacao_comparada": validacao_comparada,
         "hiperparametros_hgb": params_hgb,
+        "hiperparametros_logistica": params_lr,
+        "comparacao_pareada": pareada,
+        "bootstrap_teste": bootstrap,
+        "ablacao": {"roc_auc_completo": ablacao.attrs["roc_auc_completo"],
+                    "grupos": ablacao.to_dict(orient="records")},
         "comparacao_modelos": comparacao.to_dict(orient="records"),
         "metricas_teste": metricas_teste,
         "metricas_baseline_teste": metricas_baseline,

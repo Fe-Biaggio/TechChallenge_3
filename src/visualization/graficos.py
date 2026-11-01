@@ -269,3 +269,38 @@ def validacao_temporal(oficial: dict, validacao: dict, ano_treino: int, ano_proj
     ax.set_title("Validação fora do tempo: Brasil, modelo vs. indicador oficial")
     ax.legend(loc="upper left", fontsize=8)
     return _salvar(fig, "17_validacao_temporal_nacional.png")
+
+
+def coeficientes(df: pd.DataFrame, top_n: int = 16) -> Path:
+    """Coeficientes padronizados da Regressão Logística (efeito no log-odds de estar alfabetizado)."""
+    d = df[~df["feature"].str.startswith("missingindicator")].copy()
+    d = d.reindex(d["coeficiente"].abs().sort_values(ascending=False).index).head(top_n).iloc[::-1]
+    fig, ax = plt.subplots(figsize=(7, 5.5))
+    cores = [VERDE if c > 0 else VERMELHO for c in d["coeficiente"]]
+    ax.barh(d["feature"], d["coeficiente"], color=cores)
+    ax.axvline(0, color=CINZA, lw=0.8)
+    ax.set_xlabel("coeficiente (features padronizadas)\n> 0 aumenta a chance de estar alfabetizado")
+    ax.set_title("Regressão Logística — coeficientes (feature importance nativa)")
+    return _salvar(fig, "18_coeficientes_logistica.png")
+
+
+def ablacao(df: pd.DataFrame) -> Path:
+    """Perda de ROC-AUC ao retirar cada grupo de fatores, e ROC-AUC só com o grupo."""
+    d = df.sort_values("perda_ao_remover")
+    completo = df.attrs.get("roc_auc_completo")
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+    axes[0].barh(d["grupo"], d["perda_ao_remover"], color=VERMELHO)
+    axes[0].set_xlabel("queda de ROC-AUC ao REMOVER o grupo")
+    for i, v in enumerate(d["perda_ao_remover"]):
+        axes[0].text(max(v, 0), i, f" {v:+.4f}", va="center", fontsize=8)
+    axes[1].barh(d["grupo"], d["roc_auc_so_o_grupo"] - 0.5, left=0.5, color=AZUL)
+    axes[1].set_xlim(0.5, max(0.7, (completo or 0.65) + 0.02))
+    if completo:
+        axes[1].axvline(completo, color=CINZA, ls="--", lw=1, label=f"todas as features ({completo:.3f})")
+        axes[1].legend(loc="lower right", fontsize=8)
+    axes[1].set_xlabel("ROC-AUC usando SÓ o grupo")
+    for i, v in enumerate(d["roc_auc_so_o_grupo"]):
+        axes[1].text(v, i, f" {v:.3f}", va="center", fontsize=8)
+    fig.suptitle("Ablação por grupo de fatores (validação cruzada agrupada por município)")
+    fig.tight_layout()
+    return _salvar(fig, "19_ablacao_grupos.png")
