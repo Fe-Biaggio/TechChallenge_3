@@ -669,6 +669,9 @@ rotular um aluno, porque o erro individual é alto.
 
 ## 11. Possíveis Evoluções Futuras
 
+As duas primeiras estão planejadas na
+[issue #6](https://github.com/Fe-Biaggio/TechChallenge_3/issues/6).
+
 - **Revalidação temporal municipal.** Quando os microdados de 2025 forem
   publicados, medir o erro da projeção município a município e treinar com
   dois pares de anos.
@@ -795,7 +798,7 @@ microdados. Com credenciais GCP, a pipeline lê direto do BigQuery
   (`python reports/presentation/gerar_apresentacao_fase3.py`). Todos os
   números são lidos dos artefatos do treino, então slide, fala e README não
   divergem.
-- **Vídeo**: *a gravar a partir do roteiro e do deck acima.*
+- **Vídeo**: *a gravar a partir do roteiro e do deck acima* ([issue #5](https://github.com/Fe-Biaggio/TechChallenge_3/issues/5)).
 
 ## Organização do Trabalho (Git)
 
