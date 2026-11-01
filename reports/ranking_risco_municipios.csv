@@ -1,51 +1,51 @@
 id_municipio,nome_municipio,sigla_uf,nome_regiao,n_alunos,taxa_prevista,meta_ano,taxa_real,risco_previsto
-2410108,Poço Branco,RN,Nordeste,65,13.83,,25.35,86.17
-2403509,Espírito Santo,RN,Nordeste,72,15.97,,47.09,84.03
-2914307,Iramaia,BA,Nordeste,33,20.97,,36.36,79.03
-2402600,Ceará-Mirim,RN,Nordeste,654,21.21,,34.66,78.78999999999999
-2910503,Entre Rios,BA,Nordeste,255,21.43,,32.55,78.57
-2505238,Cuité de Mamanguape,PB,Nordeste,65,22.09,16.05,22.19,77.91
-1503101,Gurupá,PA,Norte,473,22.13,,38.23,77.87
-2405504,Jardim de Angicos,RN,Nordeste,38,22.33,23.43,31.59,77.67
-2915908,Itanagra,BA,Nordeste,53,22.38,,24.53,77.62
-2904852,Cabaceiras do Paraguaçu,BA,Nordeste,119,22.75,,32.77,77.25
-2414209,Tibau do Sul,RN,Nordeste,216,23.12,24.51,25.01,76.88
-2804904,Pacatuba,SE,Nordeste,106,23.48,23.74,28.57,76.52
-4205191,Ermo,SC,Sul,49,23.92,,69.97,76.08
+2410108,Poço Branco,RN,Nordeste,65,13.93,,25.35,86.07
+2403509,Espírito Santo,RN,Nordeste,72,16.07,,47.09,83.93
+2914307,Iramaia,BA,Nordeste,33,21.0,,36.36,79.0
+2402600,Ceará-Mirim,RN,Nordeste,654,21.31,,34.66,78.69
+2910503,Entre Rios,BA,Nordeste,255,21.51,,32.55,78.49
+2505238,Cuité de Mamanguape,PB,Nordeste,65,22.03,16.05,22.19,77.97
+1503101,Gurupá,PA,Norte,473,22.22,,38.23,77.78
+2405504,Jardim de Angicos,RN,Nordeste,38,22.32,23.43,31.59,77.68
+2915908,Itanagra,BA,Nordeste,53,22.5,,24.53,77.5
+2904852,Cabaceiras do Paraguaçu,BA,Nordeste,119,22.77,,32.77,77.23
+2414209,Tibau do Sul,RN,Nordeste,216,23.11,24.51,25.01,76.89
+2804904,Pacatuba,SE,Nordeste,106,23.47,23.74,28.57,76.53
 2408953,Rio do Fogo,RN,Nordeste,88,23.95,21.44,31.57,76.05
-2414456,Triunfo Potiguar,RN,Nordeste,37,24.02,,10.95,75.98
-2401602,Bento Fernandes,RN,Nordeste,55,24.06,21.48,29.3,75.94
-2919900,Macururé,BA,Nordeste,40,24.07,8.39,12.5,75.93
-2406205,Lagoa d'Anta,RN,Nordeste,45,24.27,,29.13,75.73
-2410306,Serra Caiada,RN,Nordeste,66,24.28,,40.45,75.72
-2928307,Santanópolis,BA,Nordeste,61,24.76,,22.95,75.24
-2902252,Arataca,BA,Nordeste,61,24.85,23.69,13.11,75.15
+2401602,Bento Fernandes,RN,Nordeste,55,23.99,21.48,29.3,76.01
+2919900,Macururé,BA,Nordeste,40,24.05,8.39,12.5,75.95
+2414456,Triunfo Potiguar,RN,Nordeste,37,24.12,,10.95,75.88
+4205191,Ermo,SC,Sul,49,24.15,,69.97,75.85
+2410306,Serra Caiada,RN,Nordeste,66,24.36,,40.45,75.64
+2406205,Lagoa d'Anta,RN,Nordeste,45,24.37,,29.13,75.63
+2902252,Arataca,BA,Nordeste,61,24.84,23.69,13.11,75.16
+2928307,Santanópolis,BA,Nordeste,61,24.88,,22.95,75.12
 2929800,Saúde,BA,Nordeste,82,25.01,21.63,20.73,74.99
-2405801,João Câmara,RN,Nordeste,277,25.39,29.74,35.88,74.61
-2401701,Bom Jesus,RN,Nordeste,94,25.51,,50.86,74.49
-1716307,Pau D'Arco,TO,Norte,58,25.99,11.05,37.97,74.01
-1715705,Palmeirante,TO,Norte,81,26.07,14.38,31.29,73.93
-1703073,Barra do Ouro,TO,Norte,72,26.2,18.0,18.25,73.8
-2804300,Muribeca,SE,Nordeste,35,26.75,15.64,22.02,73.25
+2405801,João Câmara,RN,Nordeste,277,25.36,29.74,35.88,74.64
+2401701,Bom Jesus,RN,Nordeste,94,25.59,,50.86,74.41
+1716307,Pau D'Arco,TO,Norte,58,25.9,11.05,37.97,74.1
+1715705,Palmeirante,TO,Norte,81,26.05,14.38,31.29,73.95
+1703073,Barra do Ouro,TO,Norte,72,26.18,18.0,18.25,73.82
+2804300,Muribeca,SE,Nordeste,35,26.64,15.64,22.02,73.36
 2929370,São José do Jacuípe,BA,Nordeste,88,26.77,30.39,28.41,73.23
-2910909,Firmino Alves,BA,Nordeste,43,26.79,,23.26,73.21000000000001
-2805109,Pedrinhas,SE,Nordeste,62,26.84,21.39,11.52,73.16
+2910909,Firmino Alves,BA,Nordeste,43,26.8,,23.26,73.2
+2805109,Pedrinhas,SE,Nordeste,62,26.83,21.39,11.52,73.17
 1718303,Praia Norte,TO,Norte,39,26.93,25.02,38.48,73.07
-2205581,Lagoa do Piauí,PI,Nordeste,55,27.1,11.95,44.87,72.9
-2507002,Itaporanga,PB,Nordeste,163,27.27,24.9,48.67,72.73
-2927507,Santa Bárbara,BA,Nordeste,133,27.34,28.15,31.58,72.66
+2205581,Lagoa do Piauí,PI,Nordeste,55,26.99,11.95,44.87,73.01
+2507002,Itaporanga,PB,Nordeste,163,27.28,24.9,48.67,72.72
+2927507,Santa Bárbara,BA,Nordeste,133,27.32,28.15,31.58,72.68
 2409100,Passa e Fica,RN,Nordeste,99,27.35,31.79,42.71,72.65
 2918308,Jitaúna,BA,Nordeste,98,27.41,31.37,40.82,72.59
-2406007,José da Penha,RN,Nordeste,42,27.6,,49.96,72.4
-2910859,Filadélfia,BA,Nordeste,136,27.72,25.25,36.76,72.28
-1703909,Caseara,TO,Norte,60,27.85,23.89,31.54,72.15
-2911808,Guaratinga,BA,Nordeste,159,27.86,29.89,22.64,72.14
-2914505,Irará,BA,Nordeste,83,27.89,,32.53,72.11
-2513158,Santa Cecília,PB,Nordeste,54,27.91,19.74,48.1,72.09
-1301100,Careiro,AM,Norte,174,28.0,,24.93,72.0
-1301407,Eirunepé,AM,Norte,415,28.12,,41.03,71.88
-2907202,Casa Nova,BA,Nordeste,430,28.24,19.44,20.93,71.76
-2931707,Terra Nova,BA,Nordeste,95,28.36,30.46,28.42,71.64
-2907400,Catolândia,BA,Nordeste,35,28.36,16.24,25.71,71.64
-2912103,Ibicaraí,BA,Nordeste,166,28.46,,37.95,71.53999999999999
-2805901,Riachuelo,SE,Nordeste,92,28.5,17.27,31.48,71.5
+2910859,Filadélfia,BA,Nordeste,136,27.65,25.25,36.76,72.35
+2406007,José da Penha,RN,Nordeste,42,27.67,,49.96,72.33
+1703909,Caseara,TO,Norte,60,27.84,23.89,31.54,72.16
+2911808,Guaratinga,BA,Nordeste,159,27.87,29.89,22.64,72.13
+2513158,Santa Cecília,PB,Nordeste,54,27.88,19.74,48.1,72.12
+2914505,Irará,BA,Nordeste,83,27.91,,32.53,72.09
+1301100,Careiro,AM,Norte,174,28.09,,24.93,71.91
+1301407,Eirunepé,AM,Norte,415,28.21,,41.03,71.78999999999999
+2907202,Casa Nova,BA,Nordeste,430,28.22,19.44,20.93,71.78
+2907400,Catolândia,BA,Nordeste,35,28.29,16.24,25.71,71.71000000000001
+2931707,Terra Nova,BA,Nordeste,95,28.33,30.46,28.42,71.67
+2805901,Riachuelo,SE,Nordeste,92,28.45,17.27,31.48,71.55
+2912608,Ibiquera,BA,Nordeste,32,28.46,27.17,15.62,71.53999999999999

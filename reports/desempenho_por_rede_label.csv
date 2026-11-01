@@ -1,3 +1,3 @@
 rede_label,n_alunos,taxa_real,taxa_prevista,roc_auc
-Estadual,25890,60.8,64.3,0.5689
-Municipal,344440,59.7,57.5,0.6316
+Estadual,25890,60.8,64.3,0.5688
+Municipal,344440,59.7,57.5,0.6317

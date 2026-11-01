@@ -1,0 +1,6 @@
+grupo,n_features,roc_auc_sem_o_grupo,perda_ao_remover,roc_auc_so_o_grupo
+Histórico educacional do município (ano anterior),6,0.6403,0.0077,0.6439
+Escola e rede,2,0.6452,0.0028,0.5084
+IDHM (socioeconômico),3,0.6478,0.0002,0.5392
+Meta e esforço para atingi-la,2,0.6479,0.0001,0.6278
+Território e porte do município,3,0.648,-0.0,0.5353
