@@ -90,6 +90,7 @@ N_ITER_BUSCA = 15
 
 
 def log(msg: str) -> None:
+    """Print com flush imediato (o log acompanha o progresso de execuções longas)."""
     print(msg, flush=True)
 
 
@@ -127,6 +128,7 @@ def escolher_modelo(comparacao: pd.DataFrame) -> tuple:
 
 
 def treinar_e_avaliar() -> dict:
+    """Etapas 1 a 5 do desenho da validação (docstring do módulo); grava métricas, gráficos e modelo."""
     t0 = time.time()
     log("=" * 64)
     log("FASE 3 — Predição de alfabetização por aluno")
@@ -432,6 +434,7 @@ def rodar_aplicacao_estrategica() -> dict:
 
 
 def main():
+    """Treino completo + aplicação estratégica; `--so-estrategia` refaz só a segunda parte."""
     if "--so-estrategia" not in sys.argv:
         treinar_e_avaliar()
     rodar_aplicacao_estrategica()

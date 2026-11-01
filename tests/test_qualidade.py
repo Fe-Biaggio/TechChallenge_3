@@ -1,6 +1,5 @@
 """Testes unitários para quality/validacao_dados.py — regras puras de qualidade de dados."""
 import pandas as pd
-import pytest
 
 from quality.validacao_dados import (
     verificar_completude,

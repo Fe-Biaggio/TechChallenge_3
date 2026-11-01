@@ -60,7 +60,6 @@ anterior (não há 2022) para alimentar as features de contexto.
 """
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
@@ -96,10 +95,6 @@ TODAS_FEATURES = FEATURES_CATEGORICAS + FEATURES_CONTAGEM + FEATURES_NUMERICAS
 COLUNAS_IDENTIFICACAO = ["ano", "id_municipio", "id_escola", "id_aluno", COLUNA_PESO]
 # Usadas para agregar e analisar resultados — nunca como entrada do modelo
 COLUNAS_TERRITORIO = ["nome_municipio", "sigla_uf", "nome_regiao"]
-
-# Mantidos por compatibilidade com código que importava os nomes antigos
-TODAS_CATEGORICAS = FEATURES_CATEGORICAS
-TODAS_NUMERICAS = FEATURES_CONTAGEM + FEATURES_NUMERICAS
 
 
 def _ler(camada_dir: Path, nome: str, colunas: list = None) -> pd.DataFrame:

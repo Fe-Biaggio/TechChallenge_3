@@ -47,6 +47,7 @@ def prever(ano_alvo: int, ano_roster: int, taxa_nacional: float = None):
 
 
 def main(argv=None):
+    """Linha de comando: grava a previsão por município e imprime o resumo por região."""
     parser = argparse.ArgumentParser(description="Projeção de alfabetização por município com o modelo salvo")
     parser.add_argument("--ano-alvo", type=int, default=ANO_TREINO + 1)
     parser.add_argument("--ano-roster", type=int, default=ANO_TREINO,

@@ -38,21 +38,6 @@ def calcular_metricas(y_true, y_pred, y_proba) -> dict:
     }
 
 
-# Mantido por compatibilidade com o nome usado antes desta revisão
-def validacao_cruzada(pipeline, X, y, n_splits: int = 5, groups=None) -> dict:
-    from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold, cross_val_score
-    if groups is None:
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    else:
-        cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    scores = cross_val_score(pipeline, X, y, cv=cv, scoring="roc_auc", groups=groups)
-    return {
-        "roc_auc_por_fold": [round(float(s), 4) for s in scores],
-        "roc_auc_medio": round(float(scores.mean()), 4),
-        "roc_auc_desvio_padrao": round(float(scores.std()), 4),
-    }
-
-
 def analise_limiar(y_true, y_proba) -> pd.DataFrame:
     """
     Precisão e recall da classe de RISCO (não alfabetizado) para cada limiar
@@ -113,14 +98,13 @@ def desempenho_por_subgrupo(df: pd.DataFrame, coluna_grupo: str, coluna_alvo: st
     return pd.DataFrame(linhas).sort_values("roc_auc").reset_index(drop=True)
 
 
-def feature_importance_random_forest(pipeline, top_n: int = 20) -> pd.DataFrame:
-    nomes = pipeline.named_steps["preprocessador"].get_feature_names_out()
-    importancias = pipeline.named_steps["classificador"].feature_importances_
-    df = pd.DataFrame({"feature": nomes, "importancia": importancias})
-    return df.sort_values("importancia", ascending=False).head(top_n).reset_index(drop=True)
-
-
 def coeficientes_regressao_logistica(pipeline, top_n: int = 20) -> pd.DataFrame:
+    """
+    Coeficientes da Regressão Logística no espaço pós-pré-processamento
+    (features padronizadas, one-hot e indicadores de ausência), ordenados por
+    magnitude. Como as numéricas são padronizadas, magnitudes são comparáveis:
+    efeito no log-odds de estar alfabetizado por 1 desvio padrão da feature.
+    """
     nomes = pipeline.named_steps["preprocessador"].get_feature_names_out()
     coefs = pipeline.named_steps["classificador"].coef_[0]
     df = pd.DataFrame({"feature": nomes, "coeficiente": coefs})

@@ -5,7 +5,6 @@ O módulo é carregado via importlib (ver tests/conftest.py) porque o nome do
 arquivo começa com dígito e não é importável com a sintaxe normal de import.
 """
 import pandas as pd
-import pytest
 
 from conftest import importar_modulo
 

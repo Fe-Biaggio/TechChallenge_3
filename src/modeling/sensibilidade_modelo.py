@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from sklearn.metrics import brier_score_loss, roc_auc_score
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -52,6 +51,7 @@ def _resumo(nome, y_te, proba, df_te):
 
 
 def main():
+    """Treina os dois modelos no mesmo treino, compara no mesmo teste e grava o JSON."""
     metricas = json.loads((REPORTS / "metricas_modelo.json").read_text(encoding="utf-8"))
     df = montar_dataset_modelagem(verbose=False)
     X, y, grupos = df[TODAS_FEATURES], df[COLUNA_ALVO].astype(int), df[COLUNA_GRUPO]

@@ -41,6 +41,7 @@ def _log1p():
 
 
 def preprocessador_linear() -> ColumnTransformer:
+    """ColumnTransformer para modelos lineares: imputação, one-hot, log1p e padronização."""
     return ColumnTransformer([
         ("cat", Pipeline([
             ("imputador", SimpleImputer(strategy="constant", fill_value="Desconhecido")),
@@ -59,6 +60,7 @@ def preprocessador_linear() -> ColumnTransformer:
 
 
 def preprocessador_arvore() -> ColumnTransformer:
+    """ColumnTransformer para árvores: imputação, codificação ordinal e log1p, sem escala."""
     return ColumnTransformer([
         ("cat", Pipeline([
             ("imputador", SimpleImputer(strategy="constant", fill_value="Desconhecido")),
@@ -98,6 +100,7 @@ def pipeline_logistica(**params) -> Pipeline:
 
 
 def pipeline_random_forest() -> Pipeline:
+    """Random Forest regularizado (profundidade e folha mínima limitadas) com o pré-processador de árvores."""
     return Pipeline([
         ("preprocessador", preprocessador_arvore()),
         ("classificador", RandomForestClassifier(
@@ -147,7 +150,3 @@ CANDIDATOS = {
     "random_forest": pipeline_random_forest,
     "hist_gradient_boosting": pipeline_hist_gradient_boosting,
 }
-
-# Mantidos por compatibilidade com nomes usados antes desta revisão
-construir_pipeline_logistica = pipeline_logistica
-construir_pipeline_random_forest = pipeline_random_forest

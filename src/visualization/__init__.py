@@ -1,0 +1,1 @@
+"""Gráficos salvos em images/."""

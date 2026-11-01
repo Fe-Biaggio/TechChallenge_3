@@ -26,6 +26,7 @@ from sklearn.inspection import permutation_importance
 
 def importancia_permutacao(pipeline, X: pd.DataFrame, y, amostra: int = 50_000, n_repeats: int = 5,
                            seed: int = 42) -> pd.DataFrame:
+    """Queda média de ROC-AUC ao embaralhar cada feature original (amostra do conjunto avaliado)."""
     if len(X) > amostra:
         idx = np.random.default_rng(seed).choice(len(X), amostra, replace=False)
         X, y = X.iloc[idx], np.asarray(y)[idx]

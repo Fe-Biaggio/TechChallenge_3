@@ -26,7 +26,7 @@ from pipeline.batch.config import (
     KAFKA_TOPIC_METAS,
 )
 from pipeline.batch.utils import get_logger
-from pipeline.streaming.consumer import ConsumidorKafka, ConsumidorSimulado
+from pipeline.streaming.consumer import ConsumidorSimulado
 from pipeline.streaming.producer import ProdutorKafka, ProdutorSimulado
 
 logger = get_logger(__name__)
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     logger.info("PIPELINE STREAMING — INDICADOR CRIANÇA ALFABETIZADA")
     logger.info(f"Backend : {'Kafka' if usar_kafka else 'Simulado (fila em memória)'}")
     logger.info(f"Duração : {duracao}s")
-    logger.info(f"Destino : data/bronze/streaming_indicadores | data/bronze/streaming_metas")
+    logger.info("Destino : data/bronze/streaming_indicadores | data/bronze/streaming_metas")
     logger.info("=" * 60)
 
     if usar_kafka:

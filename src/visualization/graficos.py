@@ -32,6 +32,7 @@ def _salvar(fig, nome: str) -> Path:
 # ─── EDA ─────────────────────────────────────────────────────────────────────
 
 def distribuicao_alvo(df: pd.DataFrame) -> Path:
+    """Barras com a proporção de alfabetizados e não alfabetizados."""
     contagem = df["alfabetizado"].value_counts()
     valores = [contagem.get(False, 0), contagem.get(True, 0)]
     fig, ax = plt.subplots(figsize=(5.5, 4))
@@ -45,6 +46,7 @@ def distribuicao_alvo(df: pd.DataFrame) -> Path:
 
 
 def taxa_por_regiao(df: pd.DataFrame) -> Path:
+    """Taxa de alfabetização por região (dados de 2024)."""
     taxa = df.groupby("nome_regiao", observed=True)["alfabetizado"].mean().sort_values() * 100
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.barh(taxa.index.astype(str), taxa.values, color=AZUL)
@@ -57,6 +59,7 @@ def taxa_por_regiao(df: pd.DataFrame) -> Path:
 
 
 def correlacao_com_alvo(df: pd.DataFrame, colunas: list) -> Path:
+    """Correlação de cada feature numérica com o alvo, ordenada."""
     corr = df[colunas + ["alfabetizado"]].astype(float).corr()["alfabetizado"].drop("alfabetizado").sort_values()
     fig, ax = plt.subplots(figsize=(7, 6))
     ax.barh(corr.index, corr.values, color=[VERMELHO if v < 0 else VERDE for v in corr.values])
@@ -86,6 +89,7 @@ def comparacao_modelos(comparacao: pd.DataFrame) -> Path:
 
 
 def matriz_confusao(y_true, y_pred, titulo: str) -> Path:
+    """Matriz de confusão no limiar 0,5."""
     fig, ax = plt.subplots(figsize=(5, 5))
     ConfusionMatrixDisplay.from_predictions(
         y_true, y_pred, display_labels=["Não alfab.", "Alfabetizado"], ax=ax, cmap="Blues", values_format=",d"
@@ -95,6 +99,7 @@ def matriz_confusao(y_true, y_pred, titulo: str) -> Path:
 
 
 def curva_roc(y_true, y_proba, y_proba_baseline, titulo: str) -> Path:
+    """Curva ROC do modelo contra o baseline e a diagonal do acaso."""
     from sklearn.metrics import roc_auc_score
     fig, ax = plt.subplots(figsize=(5.5, 5))
     RocCurveDisplay.from_predictions(y_true, y_proba, ax=ax, name="modelo final")
@@ -106,6 +111,7 @@ def curva_roc(y_true, y_proba, y_proba_baseline, titulo: str) -> Path:
 
 
 def calibracao(y_true, y_proba) -> Path:
+    """Curva de calibração: probabilidade prevista × fração real de alfabetizados."""
     prob_real, prob_prevista = calibration_curve(y_true, y_proba, n_bins=10, strategy="quantile")
     fig, ax = plt.subplots(figsize=(5.5, 5))
     ax.plot([0, 1], [0, 1], linestyle="--", color=CINZA, label="calibração perfeita")
@@ -118,6 +124,7 @@ def calibracao(y_true, y_proba) -> Path:
 
 
 def tradeoff_limiar(limiar: pd.DataFrame, limiar_triagem: float) -> Path:
+    """Precisão e recall da classe de risco por limiar, com os pontos de operação marcados."""
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.plot(limiar["limiar_p_risco"], limiar["precisao_risco"], color=VERMELHO, label="precisão (risco)")
     ax.plot(limiar["limiar_p_risco"], limiar["recall_risco"], color=AZUL, label="recall (risco)")
@@ -131,6 +138,7 @@ def tradeoff_limiar(limiar: pd.DataFrame, limiar_triagem: float) -> Path:
 
 
 def importancia_permutacao(df: pd.DataFrame) -> Path:
+    """Importância por permutação (queda de ROC-AUC) com barras de desvio."""
     dados = df.sort_values("queda_roc_auc")
     fig, ax = plt.subplots(figsize=(7, 6))
     ax.barh(dados["feature"], dados["queda_roc_auc"], xerr=dados["desvio"], color=AZUL)
@@ -140,6 +148,7 @@ def importancia_permutacao(df: pd.DataFrame) -> Path:
 
 
 def shap_summary(shap_values, X_transformado, nomes) -> Path:
+    """Resumo SHAP (beeswarm) das features mais influentes."""
     plt.figure()
     shap.summary_plot(shap_values, X_transformado, feature_names=nomes, show=False, max_display=15)
     fig = plt.gcf()
@@ -148,6 +157,7 @@ def shap_summary(shap_values, X_transformado, nomes) -> Path:
 
 
 def desempenho_regiao(subgrupos: pd.DataFrame) -> Path:
+    """Taxa real × prevista e ROC-AUC por região no conjunto de teste."""
     df = subgrupos.sort_values("taxa_real")
     y = np.arange(len(df))
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
@@ -169,6 +179,7 @@ def desempenho_regiao(subgrupos: pd.DataFrame) -> Path:
 # ─── Aplicação estratégica ───────────────────────────────────────────────────
 
 def backtest_meta(mun: pd.DataFrame, resumo: dict) -> Path:
+    """Dispersão taxa prevista × real por município (2024), com a meta como referência."""
     fig, ax = plt.subplots(figsize=(6, 6))
     cores = np.where(mun["real_abaixo_meta"], VERMELHO, VERDE)
     ax.scatter(mun["taxa_prevista"], mun["taxa_real"], s=6, alpha=0.4, c=cores)
@@ -184,6 +195,7 @@ def backtest_meta(mun: pd.DataFrame, resumo: dict) -> Path:
 
 
 def ranking_risco(ranking: pd.DataFrame, top_n: int = 20) -> Path:
+    """Municípios de maior risco previsto, com a taxa real como ponto de comparação."""
     df = ranking.head(top_n).iloc[::-1]
     rotulos = df["nome_municipio"].astype(str) + " (" + df["sigla_uf"].astype(str) + ")"
     fig, ax = plt.subplots(figsize=(8, 7))
@@ -196,6 +208,7 @@ def ranking_risco(ranking: pd.DataFrame, top_n: int = 20) -> Path:
 
 
 def clusters_perfil(resumo: pd.DataFrame, nomes_colunas: dict) -> Path:
+    """Mapa de calor do perfil médio de cada cluster (valores e desvio padronizado)."""
     dados = resumo[list(nomes_colunas)]
     padronizado = (dados - dados.mean()) / dados.std(ddof=0)
     fig, ax = plt.subplots(figsize=(9, 0.6 * len(dados) + 2))
@@ -213,6 +226,7 @@ def clusters_perfil(resumo: pd.DataFrame, nomes_colunas: dict) -> Path:
 
 
 def clusters_regiao(composicao: pd.DataFrame) -> Path:
+    """Composição de cada região pelos clusters de perfil municipal."""
     dados = composicao.T
     fig, ax = plt.subplots(figsize=(8, 4))
     base = np.zeros(len(dados))
