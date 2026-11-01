@@ -22,6 +22,8 @@ Uso:
     python reports/presentation/gerar_apresentacao_fase3.py
 """
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,7 +44,8 @@ IMAGES = ROOT / "images"
 DESTINO_PPTX = Path(__file__).resolve().parent / "Alfabetizacao_Fase3_Apresentacao.pptx"
 DESTINO_ROTEIRO = ROOT / "docs" / "roteiro_video_fase3.md"
 AUTOR = "Felipe Barbato de Biaggio"
-PALAVRAS_POR_MINUTO = 145  # ritmo de fala executiva, pausado
+PALAVRAS_POR_MINUTO = 135  # ritmo de leitura em voz alta, pausado
+PALAVRAS_POR_NUMERO = 3     # "1.164" se fala "mil cento e sessenta e quatro"
 
 # ─── Dados ─────────────────────────────────────────────────────────────────────
 
@@ -90,6 +93,11 @@ TOP50_UF = RANKING["sigla_uf"].value_counts()
 DUAS_UFS = TOP50_UF.head(2)
 
 pct_abaixo_meta_treino = backtest["real_abaixo_meta"] / backtest["municipios_avaliados"]
+# Quantos testes o pytest coleta (inclui os parametrizados)
+_coleta = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", str(ROOT / "tests")],
+                         capture_output=True, text=True, cwd=ROOT).stdout
+N_TESTES = int(re.search(r"(\d+) tests? collected", _coleta).group(1))
+N_DECISOES = len(re.findall(r"^### D\d+", (ROOT / "docs" / "decisoes_analiticas.md").read_text(encoding="utf-8"), re.M))
 ULTIMO_ANO = int(BRASIL.index.max())
 PRIMEIRO_ANO = int(BRASIL.index.min())
 nao_alfabetizadas = 1 - BRASIL[ULTIMO_ANO] / 100
@@ -114,6 +122,12 @@ def vezes_em_palavras(v):
     if 1.9 <= v < 2.1:
         return "o dobro de"
     return f"{num(v, 1)} vezes"
+
+
+def fracao_alertas(f):
+    """0,61 -> 'seis em cada dez'."""
+    nomes = {3: "três", 4: "quatro", 5: "cinco", 6: "seis", 7: "sete", 8: "oito", 9: "nove"}
+    return f"{nomes.get(round(f * 10), num(f * 10, 0))} em cada dez"
 
 
 def fracao_em_palavras(f):
@@ -320,7 +334,8 @@ add_text(s, 0, Inches(4.6), SLIDE_W, Inches(0.45), "Pós-Tech FIAP  |  1IAST  | 
          color=LIGHT_BLUE, align=PP_ALIGN.CENTER)
 add_text(s, 0, Inches(5.05), SLIDE_W, Inches(0.45), AUTOR, size=17, color=WHITE, align=PP_ALIGN.CENTER)
 registrar(s, "Abertura", f"""
-Olá. Eu sou {AUTOR}, e este é o Case 3 do Tech Challenge. Vou mostrar como antecipar, antes da prova, quais crianças e quais municípios estão em risco de não se alfabetizar.
+Olá, eu sou {AUTOR}. Neste Case 3, mostro como antecipar, antes da prova, quais crianças e quais municípios
+estão em risco de não se alfabetizar.
 """)
 
 # 2 — Problema ─────────────────────────────────────────────────────────────────
@@ -370,12 +385,11 @@ add_text(s, Inches(3.9), Inches(5.85), Inches(9.0), Inches(1.0),
          "Indicador Criança Alfabetizada (INEP): % de alunos com ao menos 743 pontos na escala Saeb ao fim do "
          "2º ano. Meta do Compromisso Nacional Criança Alfabetizada.", size=11, color=GRAY, italic=True)
 registrar(s, "O problema educacional", f"""
-O Brasil se comprometeu a alfabetizar todas as crianças até o fim do segundo ano, até 2030. O indicador
-nacional avançou: de {num(BRASIL[PRIMEIRO_ANO], 0)}% em {PRIMEIRO_ANO} para {num(BRASIL[ULTIMO_ANO], 0)}% em
-{ULTIMO_ANO}. Mesmo assim, {fracao_em_palavras(nao_alfabetizadas)} crianças ainda termina o segundo ano sem
-estar alfabetizada, e quase metade dos municípios ficou abaixo da própria meta em {ANO_TREINO}. O problema é
-de tempo: quando o resultado sai, o ano letivo já acabou. A nossa pergunta foi: com o que já se sabe no
-início do ano, dá para antecipar onde está o risco?
+O Brasil se comprometeu a alfabetizar todas as crianças até o fim do segundo ano, até 2030. O país avançou, de
+{num(BRASIL[PRIMEIRO_ANO], 0)} para {num(BRASIL[ULTIMO_ANO], 0)}% em dois anos. Mas
+{fracao_em_palavras(nao_alfabetizadas)} crianças ainda termina o segundo ano sem estar alfabetizada, e quase
+metade dos municípios ficou abaixo da própria meta em {ANO_TREINO}. E o resultado chega tarde: quando sai, o
+ano letivo já acabou. A pergunta é: dá para antecipar o risco antes da prova?
 """)
 
 # 3 — Solução ──────────────────────────────────────────────────────────────────
@@ -410,17 +424,16 @@ card(s, Inches(6.85), Inches(3.75), Inches(6.0), Inches(2.6), "O que o modelo N�
 add_bullets(s, Inches(7.1), Inches(4.35), Inches(5.6), Inches(2.5), [
     "A nota do próprio aluno: ela define o resultado",
     "O indicador do município no mesmo ano: inclui o próprio aluno",
-    "O estado do aluno: com um ano de treino, aprenderia o choque daquele ano (ex.: enchentes no RS)",
+    "O estado do aluno (nem a meta estadual): com um ano de treino, aprenderia o choque daquele ano "
+    "(ex.: enchentes no RS)",
 ], size=14, cor_marcador=RED, espaco=6)
 add_text(s, Inches(0.5), Inches(6.5), Inches(12.35), Inches(0.5),
-         "Cada escolha está documentada com evidência em docs/decisoes_analiticas.md (22 decisões) e protegida por "
+         f"Cada escolha está documentada com evidência em docs/decisoes_analiticas.md ({N_DECISOES} decisões) e protegida por "
          "testes automáticos que falham se uma variável proibida entrar no modelo.", size=12, color=GRAY, italic=True)
-registrar(s, "A solução", f"""
-Usamos a base construída na fase anterior, com {num((METRICAS['n_treino'] + METRICAS['n_teste']) / 1e6, 2)}
-milhão de alunos avaliados em {ANO_TREINO}, e treinamos um modelo que estima, para cada aluno, a chance de
-se alfabetizar. Somando os alunos de um município, temos a taxa esperada, que comparamos com a meta. A regra
-de ouro: o modelo só usa o que existe antes da prova, como o desempenho do
-município no ano anterior, a meta, a escola e o IDHM. Nada do resultado que queremos prever.
+registrar(s, "A solução", """
+Com a base da fase anterior, quase dois milhões de alunos, treinamos um modelo que estima a chance de cada
+criança se alfabetizar. Somando por município, temos a taxa esperada, comparável com a meta. A regra de ouro:
+o modelo só usa o que existe antes da prova, como o histórico do município, a meta, a escola e o IDHM.
 """)
 
 # 4 — Por que confiar ──────────────────────────────────────────────────────────
@@ -433,7 +446,7 @@ garantias = [
                                           "explicável a qualquer gestor"),
     ("Probabilidades confiáveis", f"Brasil {ANO_TREINO}: previsto {num(validacao[f'prevista_oof_{ANO_TREINO}'], 1)}%, "
                                   f"oficial {num(validacao[f'oficial_{ANO_TREINO}'], 1)}%"),
-    ("Reproduzível", "refeito do zero a partir do repositório: números idênticos; 59 testes automáticos"),
+    ("Reproduzível", f"refeito do zero a partir do repositório: números idênticos; {N_TESTES} testes automáticos"),
 ]
 for i, (titulo, corpo) in enumerate(garantias):
     y = Inches(1.65) + i * Inches(1.3)
@@ -445,12 +458,10 @@ add_text(s, Inches(7.35), Inches(6.55), Inches(5.3), Inches(0.5),
          f"ROC-AUC no teste: {num(teste['roc_auc'])} (IC 95%: {num(bootstrap['roc_auc_ic95'][0])}–"
          f"{num(bootstrap['roc_auc_ic95'][1])}) · palpite trivial: 0,50", size=11, color=GRAY, italic=True)
 registrar(s, "Por que confiar", f"""
-Por que confiar? Primeiro, testamos o modelo em {inteiro(METRICAS['n_municipios_teste'])} municípios que ele
-nunca viu. Segundo, comparamos três algoritmos e ficamos com o mais simples entre os empatados, uma regressão
-logística, que dá para explicar a qualquer gestor. Terceiro, as probabilidades são confiáveis: em
-{ANO_TREINO}, o modelo previu {num(validacao[f'prevista_oof_{ANO_TREINO}'], 1)}% de alfabetização no Brasil, e
-o número oficial foi {num(validacao[f'oficial_{ANO_TREINO}'], 1)}%. E tudo é reproduzível: refazendo o
-projeto do zero, os números saem idênticos.
+Por que confiar? Testamos o modelo em mais de mil municípios que ele nunca viu. Entre três algoritmos, ficamos
+com o mais simples entre os empatados, uma regressão logística, explicável a qualquer gestor. E as
+probabilidades são confiáveis: para o Brasil em {ANO_TREINO}, o modelo previu
+{num(validacao[f'prevista_oof_{ANO_TREINO}'], 1)}%, e o oficial foi {num(validacao[f'oficial_{ANO_TREINO}'], 1)}%.
 """)
 
 # 5 — O que mais pesa ──────────────────────────────────────────────────────────
@@ -488,7 +499,8 @@ for i, grupo in enumerate(ordem["grupo"]):
     ponto.format.fill.solid()
     ponto.format.fill.fore_color.rgb = NAVY if grupo.startswith("Histórico") else GRAY
 add_text(s, Inches(0.5), Inches(6.62), Inches(7.3), Inches(0.45),
-         "Ablação: modelo retreinado só com cada grupo, em validação cruzada agrupada por município.",
+         "Poder de previsão = ganho de ROC-AUC sobre o acaso (0,5), relativo ao modelo completo. Ablação: modelo "
+         "retreinado só com cada grupo, em validação cruzada agrupada por município.",
          size=10.5, color=GRAY, italic=True)
 add_runs(s, Inches(8.2), Inches(1.75), Inches(4.7), Inches(1.4), [
     (pct(_hist["poder_sozinho"]), NAVY, True), (" do poder de previsão vem do histórico educacional do município "
@@ -500,11 +512,10 @@ card(s, Inches(8.2), Inches(4.35), Inches(4.65), Inches(2.55), "Para a gestão",
      "As alavancas de maior efeito são educacionais — formação, material, acompanhamento — e respondem em um "
      "ano letivo. Indicadores socioeconômicos levam uma década para mudar.", GREEN, tamanho_corpo=14)
 registrar(s, "O que mais pesa", f"""
-O principal achado: o que mais pesa no resultado de uma criança é o histórico educacional do município. Só com
-o histórico do ano anterior, ou seja, a taxa de alfabetização, a proficiência e a participação na prova, o modelo
-entrega {pct(_hist['poder_sozinho'])} do seu poder de
-previsão. O IDHM, sozinho, entrega {pct(_idhm['poder_sozinho'])}. Para a gestão: as alavancas mais fortes são
-educacionais, como formação, material e acompanhamento, e respondem em um ano letivo.
+O principal achado: o que mais pesa é o histórico educacional do município. Só com a taxa, a proficiência e a
+participação do ano anterior, o modelo entrega {pct(_hist['poder_sozinho'])} do seu poder de previsão; o IDHM,
+sozinho, só {pct(_idhm['poder_sozinho'])}. Para a gestão: as alavancas mais fortes são educacionais, como
+formação, material e acompanhamento, e respondem em um ano letivo.
 """)
 
 # 6 — Contexto não é destino ───────────────────────────────────────────────────
@@ -542,12 +553,10 @@ add_text(s, Inches(0.5), Inches(5.85), Inches(8.4), Inches(1.0),
          "pontos a mais. Perfis formados por agrupamento (KMeans) sobre resultado, proficiência, desigualdade "
          "interna, participação e IDHM.", size=13, color=NAVY, italic=True)
 registrar(s, "Contexto não é destino", f"""
-Agrupamos os municípios em três perfis. O de maior alfabetização não é o mais rico: tem IDHM Educação menor que
-o perfil intermediário e alfabetiza
-{num(PERFIL.loc[C_TOPO, 'taxa_alfabetizacao_ant'] - PERFIL.loc[C_RICO, 'taxa_alfabetizacao_ant'], 0)} pontos a
-mais. O caso mais claro é o Ceará: {pct(CE_PCT_TOPO)} dos municípios estão nesse perfil, com média de
-{pct(CE_TAXA / 100)} de crianças alfabetizadas. O estado tem programa próprio de alfabetização desde 2007. Contexto desfavorável não é
-destino, e isso mostra onde buscar práticas para replicar.
+E contexto não é destino. O perfil de municípios com maior alfabetização tem IDHM menor que o intermediário, e
+alfabetiza {num(PERFIL.loc[C_TOPO, 'taxa_alfabetizacao_ant'] - PERFIL.loc[C_RICO, 'taxa_alfabetizacao_ant'], 0)}
+pontos a mais. O Ceará é o caso mais claro: {pct(CE_PCT_TOPO)} dos seus municípios estão nesse perfil, e o
+estado tem programa próprio de alfabetização desde 2007. É ali que vale buscar práticas para replicar.
 """)
 
 # 7 — Onde agir primeiro ───────────────────────────────────────────────────────
@@ -589,10 +598,10 @@ add_text(s, Inches(4.7), Inches(6.1), Inches(8.15), Inches(0.9),
          "Ranking com predições fora da amostra: cada município avaliado por um modelo que nunca viu seus alunos.",
          size=12.5, color=NAVY, italic=True)
 registrar(s, "Onde agir primeiro", f"""
-Individualmente, o modelo erra bastante: ele não conhece a criança, só o contexto. Mas para priorizar, ele
-funciona. Se um programa só consegue atender 20% dos alunos, escolhendo pelo modelo ele encontra
-{vezes_em_palavras(top20['lift'])} mais crianças em risco do que escolhendo ao acaso. E o risco está
-concentrado: {('Bahia' if DUAS_UFS.index[0] == 'BA' else DUAS_UFS.index[0])} e
+Para uma criança específica, o modelo erra bastante: ele vê o contexto, não a criança. Mas para priorizar, ele
+funciona. Atendendo os 20% indicados pelo modelo, um programa encontra {vezes_em_palavras(top20['lift'])} mais
+crianças em risco do que escolhendo ao acaso. E o risco está concentrado:
+{('Bahia' if DUAS_UFS.index[0] == 'BA' else DUAS_UFS.index[0])} e
 {('Rio Grande do Norte' if DUAS_UFS.index[1] == 'RN' else DUAS_UFS.index[1])} somam
 {pct(DUAS_UFS.sum() / len(RANKING))} dos {len(RANKING)} municípios de maior risco.
 """)
@@ -640,21 +649,22 @@ card(s, Inches(0.5), Inches(4.3), Inches(4.1), Inches(2.6), f"Validação real e
      f"{num(validacao[f'oficial_{ANO_PROJ}'], 1)}%. Acertou a direção, subestimou o avanço — por isso a "
      "projeção vem em dois cenários.", ORANGE, tamanho_corpo=14)
 kpi(s, Inches(9.3), Inches(1.65), Inches(3.55), Inches(2.45), inteiro(projecao["municipios_abaixo_meta"]),
-    f"municípios abaixo da meta de {ANO_PROJ} no cenário pessimista (modelo puro)", RED, tamanho=40)
+    f"municípios abaixo da meta de {ANO_PROJ} no cenário pessimista (modelo puro)", RED,
+    f"{pct(projecao['municipios_abaixo_meta'] / projecao['municipios_avaliados'])} dos municípios avaliados", tamanho=40)
 kpi(s, Inches(9.3), Inches(4.3), Inches(3.55), Inches(2.6), inteiro(ajustada["municipios_abaixo_meta"]),
     f"no cenário ajustado ao Brasil {ANO_PROJ} oficial", ORANGE,
-    f"de {inteiro(projecao['municipios_avaliados'])} · mesma ordem de prioridade", tamanho=40)
+    f"{pct(ajustada['municipios_abaixo_meta'] / projecao['municipios_avaliados'])} de "
+    f"{inteiro(projecao['municipios_avaliados'])} · mesma prioridade", tamanho=40)
 add_text(s, Inches(4.85), Inches(5.75), Inches(4.2), Inches(1.2),
          "Os microdados param em 2024; o indicador nacional de 2025 permitiu testar a projeção fora do tempo.",
          size=11, color=GRAY, italic=True)
 registrar(s, "Metas", f"""
-Também testamos no passado: com dados de {ANO_TREINO - 1}, o modelo apontou os municípios que ficariam abaixo
-da meta de {ANO_TREINO}, e seis em cada dez alertas se confirmaram. Para {ANO_PROJ}, tivemos uma validação real:
-o resultado nacional já saiu, {num(validacao[f'oficial_{ANO_PROJ}'], 0)}%. O modelo projetou
-{num(validacao[f'projetada_{ANO_PROJ}'], 0)}%: acertou a direção, mas subestimou o avanço. Por isso
-apresentamos dois cenários: entre {inteiro(ajustada['municipios_abaixo_meta'])} e
-{inteiro(projecao['municipios_abaixo_meta'])} municípios com risco de ficar abaixo da meta. A ordem de
-prioridade é a mesma nos dois.
+No teste com o passado, {fracao_alertas(backtest['precisao_alerta'])} alertas de meta se confirmaram. Para
+{ANO_PROJ}, tivemos uma validação real: o Brasil fez {num(validacao[f'oficial_{ANO_PROJ}'], 0)}%, e o modelo
+projetou {num(validacao[f'projetada_{ANO_PROJ}'], 0)}%. Acertou a direção, mas subestimou o avanço. Por isso
+trabalhamos com dois cenários: entre {pct(ajustada['municipios_abaixo_meta'] / projecao['municipios_avaliados'])}
+e {pct(projecao['municipios_abaixo_meta'] / projecao['municipios_avaliados'])} dos municípios com risco de ficar
+abaixo da meta, com a mesma ordem de prioridade.
 """)
 
 # 9 — Políticas públicas ───────────────────────────────────────────────────────
@@ -683,9 +693,9 @@ add_runs(s, Inches(0.85), Inches(5.1), Inches(11.7), Inches(1.65), [
      "reduzir recursos de um município nem rotular uma criança. A decisão final é da equipe que conhece o "
      "território.", WHITE, False)], size=17, anchor=MSO_ANCHOR.MIDDLE)
 registrar(s, "Políticas públicas", """
-Como isso apoia a política pública? São três usos. Priorizar municípios antes do ano letivo. Alertar sobre
-metas, a tempo de pactuar apoio. E monitorar a cada ano, porque a base se atualiza a cada divulgação do INEP.
-Com um cuidado importante: o modelo indica onde concentrar apoio, nunca quem punir.
+Na prática, são três usos: priorizar municípios antes do ano letivo, alertar sobre metas a tempo de pactuar
+apoio e monitorar a cada ano, já que a base se atualiza a cada divulgação do INEP. Com um cuidado: o modelo
+indica onde concentrar apoio, nunca quem punir.
 """)
 
 # 10 — Conclusão ───────────────────────────────────────────────────────────────
@@ -713,9 +723,9 @@ add_rect(s, 0, Inches(6.3), SLIDE_W, Inches(1.2), fill=BLUE_MED)
 add_text(s, 0, Inches(6.55), SLIDE_W, Inches(0.5), f"Obrigado  |  {AUTOR}  |  Pós-Tech FIAP  |  1IAST",
          size=16, color=WHITE, align=PP_ALIGN.CENTER)
 registrar(s, "Conclusão", f"""
-Resumindo: o histórico educacional é o melhor sinal de risco, contexto desfavorável não é destino, e com o que
-já sabemos dá para agir antes da prova. Os próximos passos são incluir o Censo Escolar e o CadÚnico,
-revalidar com os dados de {ANO_PROJ} e fazer um piloto com uma secretaria. Obrigado.
+Resumindo: o histórico educacional é o melhor sinal de risco, contexto não é destino, e dá para agir antes da
+prova. Próximos passos: incluir o Censo Escolar e o CadÚnico, revalidar com os dados de {ANO_PROJ} e fazer um
+piloto com uma secretaria. Obrigado.
 """)
 
 prs.save(DESTINO_PPTX)
@@ -728,7 +738,8 @@ tabela = ["| # | Slide | Início | Duração | Palavras |", "|---|---|---|---|--
 blocos = []
 for i, (titulo, fala) in enumerate(SLIDES, 1):
     palavras = len(fala.split())
-    dur = palavras / PALAVRAS_POR_MINUTO * 60
+    numeros = len(re.findall(r"\d[\d.,]*", fala))
+    dur = (palavras + numeros * (PALAVRAS_POR_NUMERO - 1)) / PALAVRAS_POR_MINUTO * 60
     tabela.append(f"| {i} | {titulo} | {int(inicio // 60)}:{int(inicio % 60):02d} | ~{round(dur)} s | {palavras} |")
     blocos.append(f"### Slide {i} — {titulo}  ·  {int(inicio // 60)}:{int(inicio % 60):02d} → "
                   f"{int((inicio + dur) // 60)}:{int((inicio + dur) % 60):02d}\n\n> {fala}\n")
@@ -741,8 +752,9 @@ roteiro = f"""# Roteiro do Vídeo Executivo — Fase 3
 > [`Alfabetizacao_Fase3_Apresentacao.pptx`](../reports/presentation/Alfabetizacao_Fase3_Apresentacao.pptx)
 > — a mesma fala está nas **notas do apresentador** de cada slide. Os números vêm dos artefatos do treino.
 
-**Duração estimada: {int(inicio // 60)} min {int(inicio % 60):02d} s** ({total_palavras} palavras a
-{PALAVRAS_POR_MINUTO} palavras/min) — dentro do limite de 5 minutos, com folga para respiros e troca de slide.
+**Duração estimada: {int(inicio // 60)} min {int(inicio % 60):02d} s** ({total_palavras} palavras, lidas a
+{PALAVRAS_POR_MINUTO} palavras/min, com cada número contando como {PALAVRAS_POR_NUMERO} palavras faladas) — dentro do
+limite de 5 minutos, com folga para respiros e troca de slide.
 
 O enunciado pede que o vídeo apresente, simulando uma reunião executiva com gestores públicos:
 
@@ -762,8 +774,8 @@ O enunciado pede que o vídeo apresente, simulando uma reunião executiva com ge
 {chr(10).join(blocos)}
 ## Dicas de gravação
 
-- **Ritmo**: fale pausado ({PALAVRAS_POR_MINUTO} palavras/min). Se o ensaio passar de 4 min 50 s, encurte a fala do
-  slide 6 (perfis) — os outros cobrem os quatro pontos obrigatórios.
+- **Ritmo**: fale pausado (~{PALAVRAS_POR_MINUTO} palavras/min). Cronometre um ensaio: se passar de 4 min 50 s,
+  encurte a fala do slide 6 (perfis) — os outros cobrem os quatro pontos obrigatórios.
 - **Tom**: reunião com gestores — fale de crianças, municípios e decisões; evite "ROC-AUC", "features",
   "regressão" fora do slide 4.
 - **Tela**: modo apresentação do PowerPoint em tela cheia; use o modo do apresentador para ler as notas.
