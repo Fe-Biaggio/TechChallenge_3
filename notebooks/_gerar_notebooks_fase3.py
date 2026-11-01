@@ -188,8 +188,11 @@ aleatório por aluno superestimaria o resultado."""),
 
     md("## 3. Busca de hiperparâmetros e comparação de modelos"),
     code("""tuning = pd.read_csv(ROOT / "reports" / "tuning_hist_gradient_boosting.csv")
-print("Melhores configurações do HistGradientBoosting (CV agrupada, 3 folds):")
+print("Melhores configurações do HistGradientBoosting (RandomizedSearchCV, CV agrupada, 3 folds):")
 display(tuning.head(5))
+tuning_lr = pd.read_csv(ROOT / "reports" / "tuning_regressao_logistica.csv")
+print("Regularização da Regressão Logística (GridSearchCV sobre C, CV agrupada, 3 folds):")
+display(tuning_lr)
 comparacao = pd.DataFrame(R["comparacao_modelos"]).set_index("modelo")
 display(comparacao)
 display(Image(filename=str(ROOT / "images" / "04_comparacao_modelos.png")))"""),
@@ -198,13 +201,44 @@ fica o mais simples. Diferenças menores que a variação entre folds não são
 evidência de que o modelo mais complexo generaliza melhor — e o gap
 treino-validação (coluna `gap_treino_validacao`) mostra quem está mais
 perto de overfitting."""),
+    code("""por_fold = pd.read_csv(ROOT / "reports" / "comparacao_modelos_por_fold.csv", index_col="fold")
+display(por_fold.round(4))
+for par, r in R["comparacao_pareada"].items():
+    print(f"{par:55s} diferença média {r['diferenca_media']:+.4f}  IC95% {r['ic95_aprox']}  "
+          f"(melhor em {r['folds_a_melhor']} de {r['n_folds']} folds)")"""),
+    md("""**Comparação pareada.** Os candidatos foram avaliados nos *mesmos* folds,
+então dá para comparar fold a fold — o que remove a variação entre grupos de
+municípios (mais fáceis ou mais difíceis), que afeta todos os modelos igual.
+Se o intervalo de 95% da diferença inclui zero, não há evidência estatística
+de que o modelo mais complexo seja melhor; se exclui zero mas a diferença é
+pequena (milésimos de AUC), ela não paga o gap de overfitting maior e a perda
+de interpretabilidade — é o que a regra de 1 desvio padrão formaliza."""),
+    code("""sens = json.loads((ROOT / "reports" / "sensibilidade_modelo.json").read_text(encoding="utf-8"))
+display(pd.DataFrame(sens["comparacao_no_teste"]).set_index("modelo"))
+print(f"Sobreposição dos 20% de municípios de maior risco entre os dois modelos: {sens['sobreposicao_top20_municipios']:.0%}")
+print(f"Correlação entre as taxas municipais previstas pelos dois: {sens['correlacao_taxas_municipais_entre_modelos']}")"""),
+    md("""**Sensibilidade (D21).** Checagem posterior à escolha: o HGB treinado no
+mesmo treino e avaliado no mesmo teste. Os dois priorizam os mesmos alunos
+(lift praticamente idêntico) e quase os mesmos municípios; o HGB é um pouco
+melhor no agregado municipal. A escolha não foi revista — mudar de modelo
+depois de ver o teste invalidaria o teste — e o HGB fica como **modelo
+desafiante** para a próxima rodada com dados novos."""),
 
     md("## 4. Resultado no teste (municípios nunca vistos)"),
     code("""t, b = R["metricas_teste"], R["metricas_baseline_teste"]
 tabela = pd.DataFrame({"modelo": t, "baseline": b}).drop("matriz_confusao")
 display(tabela)
 print(f"ROC-AUC treino {R['roc_auc_treino']} vs teste {t['roc_auc']} (gap {R['roc_auc_treino'] - t['roc_auc']:.4f})")
-print(f"ROC-AUC out-of-fold em TODOS os municípios (5 folds agrupados): {R['roc_auc_oof_todos_alunos']}")"""),
+print(f"ROC-AUC out-of-fold em TODOS os municípios (5 folds agrupados): {R['roc_auc_oof_todos_alunos']}")
+bt = R["bootstrap_teste"]
+print(f"IC 95% do ROC-AUC no teste (bootstrap de {bt['n_boot']} reamostragens por {bt['unidade_reamostrada']}): "
+      f"{bt['roc_auc_ic95']}")
+print(f"IC 95% do lift no top 20%: {bt['lift_top20_ic95']}")"""),
+    md("""**Intervalo de confiança.** O bootstrap reamostra **municípios inteiros**,
+não alunos — alunos do mesmo município compartilham o contexto e não são
+independentes; reamostrá-los um a um daria um intervalo artificialmente
+estreito. O intervalo inteiro fica bem acima de 0,5 (baseline) e o do lift
+bem acima de 1: o ganho sobre o acaso é estatisticamente robusto."""),
     code("""for img in ["06_curva_roc.png", "05_matriz_confusao.png", "07_calibracao.png"]:
     display(Image(filename=str(ROOT / "images" / img)))"""),
     md("""Calibração: os pontos perto da diagonal significam que uma probabilidade
@@ -220,7 +254,15 @@ alunos, atendendo os X% de maior risco previsto ele encontra a fração
 `taxa_risco_no_grupo` de alunos de fato em risco — `lift` vezes mais do que
 escolhendo ao acaso."""),
 
-    md("## 6. Interpretabilidade e teste das hipóteses"),
+    md("""## 6. Interpretabilidade e teste das hipóteses
+
+Quatro olhares complementares: **coeficientes** (feature importance nativa do
+modelo linear), **importância por permutação** (impacto na métrica, fora da
+amostra), **SHAP** (direção e magnitude por aluno) e **ablação por grupo**
+(retreina sem cada grupo de fatores — robusta a features correlacionadas)."""),
+    code("""coefs = pd.read_csv(ROOT / "reports" / "coeficientes_regressao_logistica.csv")
+display(coefs[~coefs.feature.str.startswith("missingindicator")].head(10))
+display(Image(filename=str(ROOT / "images" / "18_coeficientes_logistica.png")))"""),
     code("""perm = pd.read_csv(ROOT / "reports" / "importancia_permutacao.csv")
 shap_imp = pd.read_csv(ROOT / "reports" / "shap_importance.csv")
 display(perm.head(10))
@@ -269,6 +311,21 @@ features olhando o teste; fica como candidata a seleção de features por
 validação cruzada (evolução futura).
 
 **H4** e **H5**: testadas no notebook 06 (agregação municipal e clusters)."""),
+
+    md("""### Ablação por grupo de fatores
+
+A permutação mede uma feature por vez — e subestima um **grupo** quando as
+outras features do grupo carregam a mesma informação (ex.: taxa e
+proficiência do ano anterior). A ablação retreina o modelo em validação
+cruzada agrupada **sem** cada grupo e **só** com ele."""),
+    code("""abl = pd.read_csv(ROOT / "reports" / "ablacao_grupos_features.csv")
+print("ROC-AUC com todas as features:", R["ablacao"]["roc_auc_completo"])
+display(abl)
+display(Image(filename=str(ROOT / "images" / "19_ablacao_grupos.png")))"""),
+    md("""Leitura: o grupo cuja remoção mais derruba a ROC-AUC é o fator que mais
+impacta a predição — e o que, sozinho, chega mais perto do modelo completo é
+o que carrega quase toda a informação. É a resposta mais robusta à pergunta
+de negócio "quais fatores mais impactam a alfabetização?"."""),
 
     md("## 7. Onde o modelo funciona pior"),
     code("""for arquivo in ["desempenho_por_nome_regiao.csv", "desempenho_por_rede_label.csv"]:
