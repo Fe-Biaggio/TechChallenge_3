@@ -127,6 +127,13 @@ avaliação no próprio ano, a UF parecia a 2ª feature mais importante —
 justamente por capturar o choque daquele ano, que no teste (mesmo ano,
 mesmo estado) também está presente.
 
+*Mesma regra para as metas e indicadores estaduais*: o enunciado lista
+"metas nacionais e estaduais" entre as integrações da Gold. A meta estadual
+e o indicador da UF são **constantes para todos os municípios do estado** —
+como feature, seriam um identificador da UF com outro nome e herdariam o
+mesmo problema. A meta que se aplica ao aluno é a do **seu município**
+(`meta_ano`, D4); a meta nacional entra na validação temporal (D20).
+
 *Custo aceito*: alguma perda de ROC-AUC no teste do mesmo ano, em troca de
 um modelo que transfere para o ano seguinte — que é o uso real. Diferenças
 estruturais entre territórios continuam representadas pelo desempenho

@@ -56,11 +56,11 @@ perguntas de negócio do enunciado:
 
 | Pergunta | Onde é respondida |
 |---|---|
-| Quais fatores mais impactam a alfabetização? | [§7](#7-interpretação-dos-resultados): importância por permutação + SHAP + teste de hipóteses |
+| Quais fatores mais impactam a alfabetização? | [§7](#7-interpretação-dos-resultados): ablação por grupo de fatores + teste de hipóteses |
 | Quais municípios apresentam maior risco educacional? | [§8.1](#81-municípios-de-maior-risco): ranking out-of-fold |
 | Como prever municípios que podem não atingir metas futuras? | [§8.2](#82-alerta-de-metas-backtest-2024)–[§8.3](#83-projeção-2025-e-validação-fora-do-tempo): backtest 2024, validação temporal e projeção 2025 |
 | Quais regiões possuem padrões semelhantes? | [§8.4](#84-municípios-e-regiões-com-padrões-semelhantes): clusters de perfil municipal |
-| Quais variáveis mais influenciam o desempenho educacional? | [§7](#7-interpretação-dos-resultados) |
+| Quais variáveis possuem maior influência nos modelos? | [§7](#7-interpretação-dos-resultados): coeficientes, importância por permutação e SHAP |
 
 ## 3. Descrição da Base Utilizada
 
@@ -91,11 +91,13 @@ exceções, ambas tratadas e validadas pela mesma pipeline:
 
 | Grupo | Features | Origem |
 |---|---|---|
-| Desempenho do município em 2023 | `taxa_alfabetizacao_ant`, `nivel_alfabetizacao_ant`, `participacao_ant` | Gold + metas (versão de 2023) |
-| Proficiência do município em 2023 | `prof_media_ant`, `prof_desvio_ant`, `prof_p25_ant`, `mun_n_alunos_ant` | Microdados de 2023 agregados |
-| Meta | `meta_ano` (meta de 2024 como publicada em 2023), `esforco_meta` (meta − resultado da rede municipal em 2023) | Metas (Bronze, versão de 2023) |
-| Escola/aluno | `rede_label`, `escola_n_alunos` | Lista de alunos da avaliação |
-| Território (estático) | `idhm_educacao`, `idhm_renda`, `idhm_longevidade`, `capital_uf`, `amazonia_legal` | Atlas/IDHM 2010 + diretório |
+| Histórico educacional do município (2023) | `taxa_alfabetizacao_ant`, `nivel_alfabetizacao_ant`, `participacao_ant`, `prof_media_ant`, `prof_desvio_ant`, `prof_p25_ant` | Gold, metas (versão de 2023) e microdados de 2023 agregados |
+| Meta e esforço | `meta_ano` (meta de 2024 como publicada em 2023), `esforco_meta` (meta − resultado da rede municipal em 2023) | Metas (Bronze, versão de 2023) |
+| Socioeconômico | `idhm_educacao`, `idhm_renda`, `idhm_longevidade` | Atlas do Desenvolvimento Humano (IDHM 2010) |
+| Escola e rede | `rede_label`, `escola_n_alunos` | Lista de alunos da avaliação |
+| Território e porte | `capital_uf`, `amazonia_legal`, `mun_n_alunos_ant` | Diretório de municípios + microdados de 2023 |
+
+Os mesmos cinco grupos são usados na ablação (§7).
 
 **Feature engineering.** As features que mais pesam no modelo foram
 construídas nesta fase, não vieram prontas:
@@ -120,6 +122,7 @@ evidência nos dados:
 | `presenca`, `preenchimento_caderno` | Só existem no dia da prova; definem a população, não são features | D5 |
 | Histórico da escola via `id_escola` | O código é re-mascarado a cada ano: só 865 de ~37 mil pares se repetem | D6 |
 | UF e região | Com um ano de treino, aprendem o choque estadual do próprio ano (vazamento no nível do estado) | D8 |
+| Meta e indicador **estaduais** | São iguais para todos os municípios do estado: funcionariam como a UF, com o mesmo problema. A meta que importa para o aluno é a do seu município | D8 |
 
 Também ficaram de fora **redundâncias**, que não são vazamento mas impedem a
 leitura dos coeficientes (D7):
@@ -185,14 +188,28 @@ treino de cada fold:
 
 ```
 1.851.852 alunos de 2024
- ├── 20% dos MUNICÍPIOS → TESTE (370.330 alunos, 1.164 municípios), usado uma única vez
+ ├── 20% dos MUNICÍPIOS → TESTE (370.330 alunos, 1.164 municípios)
+ │                         isolado de toda escolha; avalia o modelo escolhido uma vez
  └── 80% → TREINO (1.481.522 alunos, 4.353 municípios)
-       ├── subamostra de 300 mil → busca de hiperparâmetros (15 configs × 3 folds agrupados)
-       ├── subamostra de 300 mil → comparação de candidatos (5 folds agrupados, treino e validação)
-       └── vencedor retreinado no treino completo → avaliado no TESTE
+       ├── subamostra de 300 mil → VALIDAÇÃO por CV agrupada:
+       │     ├── busca de hiperparâmetros — HGB (15 configs) e Logística (5 valores de C), 3 folds
+       │     └── comparação dos 4 candidatos, 5 folds (treino × validação, comparação pareada)
+       └── vencedor retreinado no treino completo → avaliado no TESTE (+ bootstrap por município)
  + predições out-of-fold em todos os alunos (5 folds agrupados) → ranking e backtest de metas
  + modelo final com todos os alunos de 2024 → projeção 2025 → comparada com o Brasil 2025 oficial
 ```
+
+**Treino, validação e teste**, como pede o enunciado:
+
+- **Treino**: 80% dos municípios.
+- **Validação**: os folds da validação cruzada agrupada dentro do treino, que
+  servem para escolher hiperparâmetros e modelo. O HGB usa ainda uma fração
+  interna para o early stopping.
+- **Teste**: os outros 20% dos municípios, que não participam de nenhuma
+  escolha.
+
+Depois da escolha, o teste foi usado mais uma vez, numa checagem de
+sensibilidade documentada (D21) que não alterou o modelo.
 
 - **Validação cruzada agrupada por município** (`StratifiedGroupKFold`) em
   todas as etapas. Nenhum município aparece no treino e na validação ao
@@ -369,24 +386,29 @@ Quatro métodos complementares:
 <img src="images/10_shap_summary.png" width="32%">
 </p>
 
-| # | Feature | Queda de ROC-AUC (permutação) | Leitura |
-|---|---|---|---|
-| 1 | `taxa_alfabetizacao_ant` | 0,072 | Taxa de alfabetização do município no ano anterior, de longe a mais importante |
-| 2 | `prof_media_ant` | 0,035 | Proficiência média do município no ano anterior |
-| 3 | `participacao_ant` | 0,005 | Participação na avaliação: municípios mobilizados para a prova vão melhor |
-| 4 | `idhm_educacao` | 0,004 | O componente do IDHM que mais pesa |
-| 5 | `meta_ano` | 0,003 | Meta do ano, que reflete a trajetória pactuada |
+| # | Feature | Queda de ROC-AUC (permutação) | Coeficiente padronizado | Leitura |
+|---|---|---|---|---|
+| 1 | `taxa_alfabetizacao_ant` | 0,0711 | +0,39 | Taxa de alfabetização do município no ano anterior, de longe a mais importante |
+| 2 | `prof_media_ant` | 0,0346 | +0,32 | Proficiência média do município no ano anterior |
+| 3 | `participacao_ant` | 0,0045 | +0,11 | Participação na avaliação: municípios mobilizados para a prova vão melhor |
+| 4 | `idhm_educacao` | 0,0044 | +0,07 | O componente do IDHM que mais pesa |
+| 5 | `meta_ano` | 0,0024 | −0,18 | Negativo *dado* o resultado passado: mesma base, meta mais alta = mais distância a percorrer |
+
+Um coeficiente que chama atenção é o da **rede estadual (+0,33)**. Com o
+contexto municipal fixo, alunos da rede estadual têm chance maior que os da
+municipal. Mas é justamente onde o modelo erra mais (superestima a rede
+estadual, ver abaixo).
 
 **Ablação: quais fatores mais impactam**
 ([`reports/ablacao_grupos_features.csv`](reports/ablacao_grupos_features.csv)):
 
-| Grupo de fatores | Features | ROC-AUC só com o grupo | Perda ao remover o grupo |
+| Grupo de fatores | Features | ROC-AUC só com o grupo | Queda de ROC-AUC ao remover o grupo |
 |---|---|---|---|
-| **Histórico educacional do município** (ano anterior) | 6 | **0,644** | **−0,0077** |
-| Meta e esforço para atingi-la | 2 | 0,628 | −0,0001 |
-| IDHM (socioeconômico) | 3 | 0,539 | −0,0002 |
+| **Histórico educacional do município** (ano anterior) | 6 | **0,644** | **0,0077** |
+| Meta e esforço para atingi-la | 2 | 0,628 | 0,0001 |
+| IDHM (socioeconômico) | 3 | 0,539 | 0,0002 |
 | Território e porte do município | 3 | 0,535 | 0,0000 |
-| Escola e rede | 2 | 0,508 | −0,0028 |
+| Escola e rede | 2 | 0,508 | 0,0028 |
 | *Todas as 16 features* | 16 | *0,648* | |
 
 O histórico educacional do ano anterior, **sozinho**, entrega 0,644 dos
@@ -404,7 +426,7 @@ escola diferenciam alunos *dentro* do mesmo município.
 |---|---|---|
 | **H1** Histórico educacional é o fator mais associado | ✅ Confirmada | As duas features mais importantes são resultado e proficiência do ano anterior; sozinho, o grupo entrega ROC-AUC de 0,644 (de 0,648) |
 | **H2** IDHM pesa menos que o histórico educacional | ✅ Confirmada | Permutação somada: históricos 0,114, IDHM 0,005 (22×); ablação: IDHM sozinho 0,539 contra 0,644 do histórico |
-| **H3** Mais esforço para a meta, menor chance | ⚠️ Na direção, fraca | Coeficiente negativo (−0,06), mas a correlação simples de −0,20 é explicada sobretudo pelo resultado passado |
+| **H3** Mais esforço para a meta, menor chance | ⚠️ Na direção, fraca | Coeficiente negativo (−0,05), mas a correlação simples de −0,20 é explicada sobretudo pelo resultado passado |
 | **H4** Mais útil para priorizar que para prever um aluno | ✅ Confirmada | ROC-AUC individual de 0,63 contra correlação de 0,74 no agregado municipal ([§8.2](#82-alerta-de-metas-backtest-2024)) |
 | **H5** Alfabetização alta com contexto desfavorável | ✅ Confirmada | O perfil de maior alfabetização tem IDHM menor que o intermediário ([§8.4](#84-municípios-e-regiões-com-padrões-semelhantes)) |
 
@@ -545,6 +567,13 @@ sobre a saída do modelo (D19): taxa, proficiência, desigualdade interna,
 participação, IDHM Educação e IDHM Renda. O k foi escolhido pelo silhouette
 (k = 3, silhouette de 0,27).
 
+Um silhouette de 0,27 indica **separação moderada**: os municípios formam um
+contínuo, e os perfis devem ser lidos como tendências, não como fronteiras
+rígidas. O silhouette cai monotonicamente de k = 3 (0,27) a k = 7 (0,21), então
+dividir mais não revela grupos mais nítidos. Para uso operacional, o ranking
+de risco (§8.1) é o instrumento de priorização; os perfis servem para
+encontrar pares comparáveis.
+
 | Perfil | Municípios | Taxa de alfabetização | Proficiência média | Desigualdade interna (DP) | Participação | IDHM Educação | IDHM Renda |
 |---|---|---|---|---|---|---|---|
 | **C1** | 1.618 | **83,3%** | 776 | **34,4** | **94,6%** | 0,550 | 0,628 |
@@ -671,8 +700,8 @@ TechChallenge_3/
 │   │   ├── prever.py                      # Inferência com o modelo salvo (pontuar um ano novo sem re-treinar)
 │   │   └── sensibilidade_modelo.py        # Checagem posterior: modelo desafiante (HGB) no mesmo teste (D21)
 │   ├── evaluation/
-│   │   ├── metricas.py                    # Métricas, priorização, desempenho por subgrupo
-│   │   ├── interpretabilidade.py          # Permutação + SHAP
+│   │   ├── metricas.py                    # Métricas, priorização, subgrupos, bootstrap, comparação pareada
+│   │   ├── interpretabilidade.py          # Permutação, SHAP e ablação por grupo de fatores
 │   │   └── aplicacao_estrategica.py       # Ranking, backtest/projeção de metas, validação temporal, clusters
 │   └── visualization/graficos.py          # 19 gráficos em images/
 ├── notebooks/
@@ -687,16 +716,17 @@ TechChallenge_3/
 │   ├── metricas_modelo.json               # Todas as métricas do treino
 │   ├── aplicacao_estrategica.json         # Backtest, validação temporal, projeções e clusters
 │   ├── *.csv                              # Comparação, tuning, priorização, importância, ranking, projeções, clusters
-│   └── presentation/                      # Decks (Fase 2 e Fase 3) e seus geradores
+│   └── presentation/                      # Deck da Fase 3 (+ gerador); deck e vídeo da Fase 2
 ├── docs/
 │   ├── decisoes_analiticas.md             # D1–D22: o porquê de cada decisão, com evidência
 │   ├── model_card.md                      # Ficha do modelo: uso pretendido, dados, desempenho, limites, riscos
 │   ├── roteiro_video_fase3.md             # Roteiro do vídeo executivo (≤ 5 min)
 │   ├── fase2_pipeline.md                  # Documentação da pipeline de dados (Fase 2)
+│   ├── fase2_consultas_bigquery.md        # Consultas SQL de referência (Base dos Dados)
 │   ├── arquitetura/                       # Diagramas da pipeline
 │   └── [IAST] - Tech Challenge - Fase 3.pdf
 ├── pipeline/, quality/                    # Fase 2 — Bronze → Silver → Gold com gate de qualidade
-├── data/                                  # raw/ versionado; bronze/silver/gold/modelagem gerados
+├── data/                                  # raw/ versionado; bronze/silver/gold/modelagem gerados (ver data/README.md)
 ├── tests/                                 # pytest — pipeline (Fase 2) + ML (vazamento, modelos, aplicação)
 ├── .github/                               # CI (GitHub Actions roda os testes a cada push/PR) + template de PR
 ├── requirements.txt
